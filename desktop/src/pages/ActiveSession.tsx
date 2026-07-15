@@ -318,6 +318,16 @@ export function ActiveSession() {
   const [showContextSidebar, setShowContextSidebar] = useState(false)
   const stoppingBackgroundTaskIds = sessionState?.stoppingBackgroundTaskIds
 
+  // Toggle context sidebar: when opening, close activity panel
+  const toggleContextSidebar = useCallback(() => {
+    setShowContextSidebar(v => {
+      if (!v && activeTabId && isActivityPanelOpen) {
+        closeActivityPanel(activeTabId)
+      }
+      return !v
+    })
+  }, [activeTabId, isActivityPanelOpen, closeActivityPanel])
+
   const session = sessions.find((s) => s.id === activeTabId)
   const memberInfo = useTeamStore((s) => activeTabId ? s.getMemberBySessionId(activeTabId) : null)
   const activeTeam = useTeamStore((s) => s.activeTeam)
@@ -586,7 +596,7 @@ export function ActiveSession() {
                   <>
                     <img
                       src={publicAssetPath('app-icon.png')}
-                      alt="Claude Code Haha"
+                      alt="Minicode"
                       className={compactEmptyHero ? 'mb-4 h-16 w-16' : 'mb-6 h-24 w-24'}
                     />
                     <h1 className={`${compactEmptyHero ? 'mb-1 text-2xl' : 'mb-2 text-3xl'} font-extrabold tracking-tight text-[var(--color-text-primary)]`} style={{ fontFamily: 'var(--font-headline)' }}>
@@ -621,7 +631,7 @@ export function ActiveSession() {
                         {session?.title || t('session.untitled')}
                       </h1>
                       <button
-                        onClick={() => setShowContextSidebar(v => !v)}
+                        onClick={() => toggleContextSidebar()}
                         data-active={showContextSidebar}
                         title="Toggle context usage sidebar"
                         className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[var(--color-text-tertiary)] hover:bg-[var(--color-surface-container)] hover:text-[var(--color-text-primary)] transition-colors data-[active=true]:bg-[var(--color-surface-container)] data-[active=true]:text-[var(--color-secondary)]"

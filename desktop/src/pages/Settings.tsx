@@ -4535,8 +4535,8 @@ function AboutSettings() {
   return (
     <div className="w-full min-w-0 max-w-2xl mx-auto flex flex-col items-center py-6">
       {/* Logo + App Name + Version */}
-      <img src={publicAssetPath('app-icon.png')} alt="Claude Code Haha" className="w-20 h-20 mb-4" />
-      <h1 className="text-xl font-bold text-[var(--color-text-primary)]">Claude Code Haha</h1>
+      <img src={publicAssetPath('app-icon.png')} alt="Minicode" className="w-20 h-20 mb-4" />
+      <h1 className="text-xl font-bold text-[var(--color-text-primary)]">Minicode</h1>
       {version && (
         <div className="mt-1 flex items-center gap-2 text-xs text-[var(--color-text-tertiary)]">
           <span>{t('settings.about.version')} {version}</span>
