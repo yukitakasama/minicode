@@ -295,7 +295,7 @@ export const jp: Record<TranslationKey, string> = {
 
   // Settings > Terminal
   'settings.terminal.title': 'ターミナル',
-  'settings.terminal.description': 'プラグイン、スキル、MCP のセットアップ用にホストマシンのコマンドを実行します。デスクトップアプリには claude-haha が含まれています。ドキュメントの claude <args> を claude-haha <args> に置き換えてください。例: claude-haha plugin install ... や claude-haha mcp add ...',
+  'settings.terminal.description': 'プラグイン、スキル、MCP のセットアップ用にホストマシンのコマンドを実行します。デスクトップアプリには minicode が含まれています。ドキュメントの claude <args> を minicode <args> に置き換えてください。例: minicode plugin install ... や minicode mcp add ...',
   'settings.terminal.infoLabel': 'ターミナルセットアップのヘルプ',
   'settings.terminal.clear': 'クリア',
   'settings.terminal.restart': '再起動',
@@ -1097,7 +1097,7 @@ export const jp: Record<TranslationKey, string> = {
   'settings.general.notificationsStatusUnsupported': 'この環境では利用できません',
   'settings.general.notificationsAuthorize': '許可する',
   'settings.general.notificationsOpenSettings': '設定を開く',
-  'settings.general.notificationsTestTitle': 'Claude Code Haha の通知が有効になりました',
+  'settings.general.notificationsTestTitle': 'Minicode の通知が有効になりました',
   'settings.general.notificationsTestBody': '権限の確認と完了したエージェントの応答に、これからシステム通知が使用されます。',
   'settings.general.traceTitle': 'Agent Trace',
   'settings.general.traceDescription': '停止、失敗、予期しない待機を調査するために、ローカルセッションのモデル要求トレースを収集します。',

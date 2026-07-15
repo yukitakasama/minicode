@@ -20,7 +20,7 @@ function tempDir() {
 }
 
 function app(root = tempDir()): AppModeAppLike & { root: string } {
-  const exe = path.join(root, 'install', 'Claude Code Haha')
+  const exe = path.join(root, 'install', 'Minicode')
   const home = path.join(root, 'home')
   const userData = path.join(root, 'user-data')
   fs.mkdirSync(path.dirname(exe), { recursive: true })
