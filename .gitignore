@@ -1,0 +1,16 @@
+node_modules/
+dist/
+build-artifacts/
+.vite/
+*.exe
+*.zip
+*.7z
+.env
+.env.local
+.env.*.local
+*.log
+.DS_Store
+Thumbs.db
+desktop/.vite/
+desktop/electron-dist/
+desktop/src-tauri/binaries/
