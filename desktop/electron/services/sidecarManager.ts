@@ -238,10 +238,19 @@ async function assertServerHealth(healthUrl: string, timeoutMs: number): Promise
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), timeoutMs)
   try {
-    const response = await fetch(healthUrl, {
-      cache: 'no-store',
-      signal: controller.signal,
-    })
+    let response: Response
+    try {
+      response = await fetch(healthUrl, {
+        cache: 'no-store',
+        signal: controller.signal,
+      })
+    } catch (fetchError) {
+      const message = fetchError instanceof Error ? fetchError.message : String(fetchError)
+      const code = (fetchError as NodeJS.ErrnoException)?.code
+      const wrapped = new Error(code ? `${code}: ${message}` : message)
+      if (code) (wrapped as NodeJS.ErrnoException).code = code
+      throw wrapped
+    }
     if (!response.ok) throw new Error(`healthcheck returned ${response.status}`)
 
     const contentType = response.headers.get('content-type') ?? ''
