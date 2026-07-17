@@ -1,7 +1,7 @@
 {
   "name": "minicode-desktop",
   "private": true,
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Desktop coding agent with context usage visualization.",
   "homepage": "https://github.com/NanmiCoder/cc-haha",
   "author": {
