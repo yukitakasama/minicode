@@ -77,7 +77,7 @@ function buildPermissionTouchBar(
   const MAX_PERMISSIONS = 3
   const shownPermissions = permissions.slice(-MAX_PERMISSIONS)
 
-  const items: (TouchBarButton | TouchBarLabel | TouchBarSpacer)[] = []
+  const items = []
   for (const perm of shownPermissions) {
     const shortName = perm.toolName.length > 16
       ? perm.toolName.slice(0, 14) + '...'
@@ -428,6 +428,40 @@ function registerIpcHandlers() {
   registerHandler(ELECTRON_IPC_CHANNELS.zoomSet, (event, payload) => currentWindow(event).webContents.setZoomFactor(normalizeZoomFactor(payload)))
 }
 
+const NETWORK_ERROR_CODES = new Set([
+  'ECONNRESET', 'ECONNREFUSED', 'ETIMEDOUT', 'ENOTFOUND',
+  'EAI_AGAIN', 'EPIPE', 'ERR_CONNECTION_RESET', 'ERR_CONNECTION_REFUSED',
+])
+
+function isNetworkError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false
+  if (NETWORK_ERROR_CODES.has((error as NodeJS.ErrnoException).code ?? '')) return true
+  const message = error.message.toLowerCase()
+  return message.includes('econnreset') ||
+    message.includes('econnrefused') ||
+    message.includes('etimedout') ||
+    message.includes('enotfound') ||
+    message.includes('network') ||
+    message.includes('fetch failed') ||
+    message.includes('socket hang up')
+}
+
+process.on('uncaughtException', (error) => {
+  if (isNetworkError(error)) {
+    console.error('[desktop] uncaught network error (suppressed dialog):', error.message)
+    return
+  }
+  console.error('[desktop] uncaught exception:', error)
+})
+
+process.on('unhandledRejection', (reason) => {
+  if (isNetworkError(reason)) {
+    console.error('[desktop] unhandled network rejection (suppressed):', reason instanceof Error ? reason.message : String(reason))
+    return
+  }
+  console.error('[desktop] unhandled rejection:', reason)
+})
+
 async function createMainWindow() {
   const restoredState = readWindowState(app, screen.getAllDisplays())
   const bounds = windowOptionsFromState(restoredState)
@@ -498,7 +532,9 @@ app.whenReady().then(async () => {
   await getServerRuntime().startServer().catch(error => {
     console.error('[desktop] failed to start Electron server sidecar', error)
   })
-  await installApplicationMenu(app, () => mainWindow)
+  await installApplicationMenu(app, () => mainWindow).catch(error => {
+    console.error('[desktop] failed to install application menu', error)
+  })
   if (shouldInstallTray(process.platform)) {
     trayController = await installTray({
       app,
@@ -513,7 +549,9 @@ app.whenReady().then(async () => {
       return null
     })
   }
-  await createMainWindow()
+  await createMainWindow().catch(error => {
+    console.error('[desktop] failed to create main window', error)
+  })
   scheduleNotificationSmoke({
     env: process.env,
     NotificationClass: Notification,
@@ -525,7 +563,9 @@ app.whenReady().then(async () => {
       showMainWindow(mainWindow, app)
       return
     }
-    void createMainWindow()
+    void createMainWindow().catch(error => {
+      console.error('[desktop] failed to create main window on activate', error)
+    })
   })
 })
 
