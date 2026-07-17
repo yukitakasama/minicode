@@ -1,11 +1,13 @@
 import { AppShell } from './components/layout/AppShell'
 import { useScheduledTaskDesktopNotifications } from './hooks/useScheduledTaskDesktopNotifications'
 import { installDesktopNotificationNavigation } from './lib/desktopNotificationNavigation'
+import { initPermissionTouchBar } from './lib/permissionTouchBar'
 import { useEffect } from 'react'
 
 export function App() {
   useScheduledTaskDesktopNotifications()
   useEffect(() => {
+    initPermissionTouchBar()
     let cleanup: (() => void) | undefined
     let cancelled = false
     installDesktopNotificationNavigation()

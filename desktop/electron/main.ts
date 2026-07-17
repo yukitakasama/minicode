@@ -1,4 +1,5 @@
-import { app, BrowserWindow, clipboard, ipcMain, Notification, screen, session, WebContentsView } from 'electron'
+import { app, BrowserWindow, clipboard, ipcMain, Notification, screen, session, TouchBar, WebContentsView } from 'electron'
+const { TouchBarButton, TouchBarLabel, TouchBarSpacer } = TouchBar
 import { autoUpdater } from 'electron-updater'
 import path from 'node:path'
 import { ELECTRON_EVENT_CHANNELS, ELECTRON_INTERNAL_CHANNELS, ELECTRON_IPC_CHANNELS, type ElectronIpcChannel } from './ipc/channels'
@@ -59,6 +60,63 @@ let previewService: ElectronPreviewService | null = null
 const traceWindows = new Map<string, BrowserWindow>()
 let isQuitting = false
 let trayController: TrayController | null = null
+
+type TouchBarPermission = { requestId: string; toolName: string }
+type TouchBarUpdatePayload = { sessionId: string; permissions: TouchBarPermission[] }
+
+function buildPermissionTouchBar(
+  window: BrowserWindow,
+  sessionId: string,
+  permissions: TouchBarPermission[],
+) {
+  if (process.platform !== 'darwin') {
+    window.setTouchBar(null)
+    return
+  }
+
+  const MAX_PERMISSIONS = 3
+  const shownPermissions = permissions.slice(-MAX_PERMISSIONS)
+
+  const items: (TouchBarButton | TouchBarLabel | TouchBarSpacer)[] = []
+  for (const perm of shownPermissions) {
+    const shortName = perm.toolName.length > 16
+      ? perm.toolName.slice(0, 14) + '...'
+      : perm.toolName
+
+    items.push(new TouchBarLabel({ label: shortName }))
+    items.push(new TouchBarButton({
+      label: '\u2705 Allow',
+      backgroundColor: '#1a7f37',
+      click: () => {
+        window.webContents.send('desktop:event', {
+          sessionId,
+          requestId: perm.requestId,
+          action: 'allow',
+        } as const)
+      },
+    }))
+    items.push(new TouchBarButton({
+      label: '\u274c Deny',
+      backgroundColor: '#cf222e',
+      click: () => {
+        window.webContents.send('desktop:event', {
+          sessionId,
+          requestId: perm.requestId,
+          action: 'deny',
+        } as const)
+      },
+    }))
+    items.push(new TouchBarSpacer({ size: 'large' }))
+  }
+
+  if (shownPermissions.length === 0) {
+    window.setTouchBar(null)
+    return
+  }
+
+  const touchBar = new TouchBar({ items })
+  window.setTouchBar(touchBar)
+}
 
 installMacOsChromiumKeychainPromptGuard(app)
 
@@ -265,6 +323,11 @@ async function handleCommandInvoke(payload: unknown): Promise<unknown> {
       return openSystemSettingsUrl('x-apple.systempreferences:com.apple.preference.notifications')
     case 'open_windows_notification_settings':
       return openSystemSettingsUrl('ms-settings:notifications')
+    case 'touchbar:update':
+      if (!mainWindow) return
+      { const { sessionId, permissions } = payload as TouchBarUpdatePayload
+      buildPermissionTouchBar(mainWindow, sessionId, permissions ?? []) }
+      return
     default:
       return unsupported(`Electron command ${command}`)
   }
