@@ -1098,6 +1098,9 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     if (runtimeSelection) {
       wsManager.send(sessionId, { type: 'set_runtime_config', ...runtimeSelection })
     }
+
+    get().loadHistory(sessionId)
+
     if (
       !sessionId.startsWith('__') &&
       !useTeamStore.getState().getMemberBySessionId(sessionId) &&
@@ -1105,8 +1108,6 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     ) {
       wsManager.send(sessionId, { type: 'prewarm_session' })
     }
-
-    get().loadHistory(sessionId)
     sessionsApi.getSlashCommands(sessionId)
       .then(({ commands }) => {
         if (get().sessions[sessionId]) {
