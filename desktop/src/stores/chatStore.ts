@@ -8,6 +8,7 @@ import { useSessionRuntimeStore } from './sessionRuntimeStore'
 import { useTabStore } from './tabStore'
 import { randomSpinnerVerb } from '../config/spinnerVerbs'
 import { notifyDesktop } from '../lib/desktopNotifications'
+import { syncTouchBarPermissions } from '../lib/permissionTouchBar'
 import { deriveSessionTitle, isPlaceholderSessionTitle } from '../lib/sessionTitle'
 import { hasRunningBackgroundTasks } from '../lib/backgroundTasks'
 import { AGENT_LIFECYCLE_TYPES } from '../types/team'
@@ -1281,10 +1282,11 @@ export const useChatStore = create<ChatStore>((set, get) => ({
           chatState: remainingPermissions.length > 0 ||
             Object.keys(getPendingComputerUsePermissionRecord(session)).length > 0
             ? 'permission_pending'
-            : allowed ? 'tool_executing' : 'idle',
+              : allowed ? 'tool_executing' : 'idle',
         }
       }),
     }))
+    syncTouchBarPermissions(sessionId)
   },
 
   respondToComputerUsePermission: (sessionId, requestId, response) => {
@@ -1312,6 +1314,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         }
       }),
     }))
+    syncTouchBarPermissions(sessionId)
   },
 
   setSessionRuntime: (sessionId, selection) => {
@@ -2282,6 +2285,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
                   }],
           }
         })
+        syncTouchBarPermissions(sessionId)
         break
 
       case 'computer_use_permission_request':
@@ -2314,6 +2318,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
             streamingFallback: null,
           }
         })
+        syncTouchBarPermissions(sessionId)
         break
 
       case 'permission_resolved':
@@ -2354,6 +2359,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
             ),
           }
         })
+        syncTouchBarPermissions(sessionId)
         break
 
       case 'permission_requests_snapshot':
@@ -2390,6 +2396,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
                   : session.chatState,
           }
         })
+        syncTouchBarPermissions(sessionId)
         break
 
       case 'message_complete': {
