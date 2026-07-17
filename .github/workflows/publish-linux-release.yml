@@ -1,0 +1,49 @@
+name: Publish Linux Release Assets
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag
+        required: true
+        default: v1.0.2
+        type: string
+      x64_run:
+        description: Linux x64 workflow run ID
+        required: true
+        type: string
+      arm64_run:
+        description: Linux ARM64 workflow run ID
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Download Linux x64 artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run download "${{ inputs.x64_run }}" --repo "${{ github.repository }}" --name minicode-linux-x64 --dir linux-x64
+
+      - name: Download Linux ARM64 artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run download "${{ inputs.arm64_run }}" --repo "${{ github.repository }}" --name minicode-linux-arm64 --dir linux-arm64
+
+      - name: Upload Linux assets to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "${{ inputs.tag }}" \
+            linux-x64/Minicode-1.0.2-linux-amd64.deb \
+            linux-x64/Minicode-1.0.2-linux-x86_64.AppImage \
+            linux-x64/latest-linux.yml \
+            linux-arm64/Minicode-1.0.2-linux-arm64.deb \
+            linux-arm64/Minicode-1.0.2-linux-arm64.AppImage \
+            linux-arm64/latest-linux-arm64.yml \
+            --repo "${{ github.repository }}" --clobber
