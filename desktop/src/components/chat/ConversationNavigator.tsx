@@ -122,6 +122,9 @@ export function ConversationNavigator({
   const previewItem = items.find((item) => item.id === previewItemId) ?? null
   const modeStyles = NAVIGATION_MODE_STYLES[mode]
   const interactionIndex = pointerIndex ?? focusIndex
+  const activeItemIndex = activeItemId === null
+    ? null
+    : items.findIndex((item) => item.id === activeItemId)
 
   const openPreview = (itemId: string, marker: HTMLButtonElement) => {
     const rect = marker.getBoundingClientRect()
@@ -216,6 +219,15 @@ export function ConversationNavigator({
           )
         })}
       </div>
+      {activeItemIndex !== null && activeItemIndex >= 0 ? (
+        <div
+          data-testid="conversation-navigation-position"
+          aria-live="polite"
+          className="mt-1 self-start rounded-sm bg-[var(--color-surface-container-lowest)]/90 px-1 text-center font-mono text-[10px] leading-4 text-[var(--color-text-tertiary)] shadow-sm"
+        >
+          {activeItemIndex + 1} / {items.length}
+        </div>
+      ) : null}
       {previewItem ? createPortal(
         <div
           id="conversation-navigation-preview"
