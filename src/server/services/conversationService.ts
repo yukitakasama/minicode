@@ -20,6 +20,11 @@ import {
   GROK_OAUTH_PROVIDER_ENV_KEY,
 } from './grokOfficialProvider.js'
 import {
+  CLAUDE_ROLE_ROUTING_PROVIDER_ID,
+  buildClaudeRoleRoutingRuntimeEnv,
+  loadClaudeRoleRoutingProviderConfig,
+} from './claudeModelSelection.js'
+import {
   OPENAI_CODEX_REASONING_EFFORT_ENV_KEY,
   isOpenAIReasoningEffort,
 } from '../../services/openaiAuth/models.js'
@@ -1157,12 +1162,23 @@ export class ConversationService {
       'ANTHROPIC_AUTH_TOKEN',
       'ENABLE_TOOL_SEARCH',
       'ANTHROPIC_MODEL',
+      'ANTHROPIC_DEFAULT_FABLE_MODEL',
+      'ANTHROPIC_DEFAULT_FABLE_MODEL_NAME',
+      'ANTHROPIC_DEFAULT_FABLE_MODEL_DESCRIPTION',
+      'ANTHROPIC_DEFAULT_FABLE_MODEL_SUPPORTED_CAPABILITIES',
       'ANTHROPIC_DEFAULT_HAIKU_MODEL',
+      'ANTHROPIC_DEFAULT_HAIKU_MODEL_NAME',
+      'ANTHROPIC_DEFAULT_HAIKU_MODEL_DESCRIPTION',
       'ANTHROPIC_DEFAULT_HAIKU_MODEL_SUPPORTED_CAPABILITIES',
       'ANTHROPIC_DEFAULT_SONNET_MODEL',
+      'ANTHROPIC_DEFAULT_SONNET_MODEL_NAME',
+      'ANTHROPIC_DEFAULT_SONNET_MODEL_DESCRIPTION',
       'ANTHROPIC_DEFAULT_SONNET_MODEL_SUPPORTED_CAPABILITIES',
       'ANTHROPIC_DEFAULT_OPUS_MODEL',
+      'ANTHROPIC_DEFAULT_OPUS_MODEL_NAME',
+      'ANTHROPIC_DEFAULT_OPUS_MODEL_DESCRIPTION',
       'ANTHROPIC_DEFAULT_OPUS_MODEL_SUPPORTED_CAPABILITIES',
+      'CLAUDE_CODE_SUBAGENT_MODEL',
       'CC_HAHA_SEND_DISABLED_THINKING',
       'CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS',
       'CLAUDE_CODE_AUTO_COMPACT_WINDOW',
@@ -1201,15 +1217,39 @@ export class ConversationService {
 
     const explicitProvider =
       typeof options?.providerId === 'string'
-        ? await this.providerService.getProvider(options.providerId)
+        ? await this.providerService.getProvider(options.providerId).catch(() => null)
         : null
-    const explicitProviderEnv = explicitProvider
+    let explicitProviderEnv = explicitProvider
       ? await this.providerService.getProviderRuntimeEnv(explicitProvider.id)
       : null
+
+    // Claude 官方 + cc-switch：无激活 provider 时自动注入角色模型与（如需）Minicode GPT 路由
+    if (!explicitProviderEnv && (options?.providerId === undefined || options?.providerId === null)) {
+      const roleConfig = loadClaudeRoleRoutingProviderConfig()
+      if (roleConfig) {
+        explicitProviderEnv = buildClaudeRoleRoutingRuntimeEnv(roleConfig, {
+          serverPort: ProviderService.getServerPort(),
+          model: options?.model,
+        })
+      }
+    }
+
     const networkEnv = buildNetworkEnvironment(await loadNetworkSettings(), cleanEnv)
     const traceCaptureEnabled = (await readTraceCaptureSettings()).enabled
-    if (explicitProviderEnv && options?.model?.trim()) {
+    if (explicitProviderEnv && options?.model?.trim() && !explicitProviderEnv.ANTHROPIC_DEFAULT_FABLE_MODEL) {
+      // 非 role-routing 路径：直接覆盖主模型
       explicitProviderEnv.ANTHROPIC_MODEL = options.model.trim()
+    } else if (explicitProviderEnv && options?.model?.trim() && explicitProvider?.id === CLAUDE_ROLE_ROUTING_PROVIDER_ID) {
+      explicitProviderEnv = {
+        ...explicitProviderEnv,
+        ...buildClaudeRoleRoutingRuntimeEnv(
+          loadClaudeRoleRoutingProviderConfig()!,
+          {
+            serverPort: ProviderService.getServerPort(),
+            model: options.model,
+          },
+        ),
+      }
     }
     const attributionHeaderEnv = attributionHeaderEnvForModel(
       options?.model?.trim() ||
@@ -1268,11 +1308,15 @@ export class ConversationService {
       ...(sdkUrl && traceCaptureEnabled
         ? { CC_HAHA_TRACE_API_CALLS: '1' }
         : {}),
-      ...(sdkUrl && traceCaptureEnabled && explicitProvider
+      ...(sdkUrl && traceCaptureEnabled && (explicitProvider || explicitProviderEnv?.ANTHROPIC_BASE_URL)
         ? {
-            CC_HAHA_TRACE_PROVIDER_ID: explicitProvider.id,
-            CC_HAHA_TRACE_PROVIDER_NAME: explicitProvider.name,
-            CC_HAHA_TRACE_PROVIDER_FORMAT: explicitProvider.apiFormat ?? 'anthropic',
+            CC_HAHA_TRACE_PROVIDER_ID: explicitProvider?.id
+              ?? (explicitProviderEnv?.ANTHROPIC_BASE_URL?.includes(CLAUDE_ROLE_ROUTING_PROVIDER_ID)
+                ? CLAUDE_ROLE_ROUTING_PROVIDER_ID
+                : 'claude-role-routing'),
+            CC_HAHA_TRACE_PROVIDER_NAME: explicitProvider?.name ?? 'Claude Code / cc-switch',
+            CC_HAHA_TRACE_PROVIDER_FORMAT: explicitProvider?.apiFormat
+              ?? (explicitProviderEnv?.ANTHROPIC_API_KEY === 'proxy-managed' ? 'openai_responses' : 'anthropic'),
           }
         : {}),
       ...(desktopServerUrl
@@ -1408,6 +1452,7 @@ export class ConversationService {
         'ANTHROPIC_AUTH_TOKEN',
         'ENABLE_TOOL_SEARCH',
         'ANTHROPIC_MODEL',
+        'ANTHROPIC_DEFAULT_FABLE_MODEL',
         'ANTHROPIC_DEFAULT_HAIKU_MODEL',
         'ANTHROPIC_DEFAULT_HAIKU_MODEL_SUPPORTED_CAPABILITIES',
         'ANTHROPIC_DEFAULT_SONNET_MODEL',
@@ -1438,11 +1483,18 @@ export class ConversationService {
    * provider 管理,也希望官方 OAuth 能正常工作。
    */
   private shouldMarkManagedOAuth(providerId?: string | null): boolean {
-    if (providerId === null) {
-      return true
-    }
     if (typeof providerId === 'string') {
       return false
+    }
+
+    // cc-switch 角色路由（含 GPT 自动代理）优先于官方 OAuth
+    if (loadClaudeRoleRoutingProviderConfig()) {
+      return false
+    }
+
+    // 显式官方模式（providerId === null）且无角色路由 → OAuth
+    if (providerId === null) {
+      return true
     }
 
     const configDir =

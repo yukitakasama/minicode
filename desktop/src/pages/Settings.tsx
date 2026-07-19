@@ -984,10 +984,16 @@ function readSettingsEnvString(env: Record<string, unknown>, key: string): strin
 }
 
 function readModelMappingFromSettingsEnv(env: Record<string, unknown>): Partial<ModelMapping> {
+  const fable = readSettingsEnvString(env, 'ANTHROPIC_DEFAULT_FABLE_MODEL')
   const haiku = readSettingsEnvString(env, 'ANTHROPIC_DEFAULT_HAIKU_MODEL')
   const sonnet = readSettingsEnvString(env, 'ANTHROPIC_DEFAULT_SONNET_MODEL')
   const opus = readSettingsEnvString(env, 'ANTHROPIC_DEFAULT_OPUS_MODEL')
-  const main = readSettingsEnvString(env, 'ANTHROPIC_MODEL') ?? sonnet ?? haiku ?? opus
+  // cc-switch 常把 ANTHROPIC_MODEL 留空，用角色模型；主模型优先 ANTHROPIC_MODEL，否则 sonnet/fable/opus
+  const main = readSettingsEnvString(env, 'ANTHROPIC_MODEL')
+    ?? sonnet
+    ?? fable
+    ?? opus
+    ?? haiku
 
   return {
     ...(main ? { main } : {}),

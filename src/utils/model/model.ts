@@ -151,6 +151,15 @@ export function getDefaultHaikuModel(): ModelName {
   return getModelStrings().haiku45
 }
 
+/** cc-switch / Claude Code 角色：Fable（若配置了 ANTHROPIC_DEFAULT_FABLE_MODEL） */
+export function getDefaultFableModel(): ModelName {
+  if (process.env.ANTHROPIC_DEFAULT_FABLE_MODEL?.trim()) {
+    return process.env.ANTHROPIC_DEFAULT_FABLE_MODEL.trim()
+  }
+  // 无 fable 配置时回退到主模型 / Opus
+  return process.env.ANTHROPIC_MODEL?.trim() || getDefaultOpusModel()
+}
+
 /**
  * Get the model to use for runtime, depending on the runtime context.
  * @param params Subset of the runtime context to determine the model to use.
@@ -495,6 +504,8 @@ export function parseUserSpecifiedModel(
         return getDefaultHaikuModel() + (has1mTag ? '[1m]' : '')
       case 'opus':
         return getDefaultOpusModel() + (has1mTag ? '[1m]' : '')
+      case 'fable':
+        return getDefaultFableModel() + (has1mTag ? '[1m]' : '')
       case 'best':
         return getBestModel()
       default:
