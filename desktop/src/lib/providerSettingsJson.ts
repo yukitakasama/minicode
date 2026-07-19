@@ -3,6 +3,13 @@ export const API_KEY_JSON_PLACEHOLDER = '••••••••'
 const API_KEY_JSON_KEYS = ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN'] as const
 const PROXY_MANAGED_PLACEHOLDERS = new Set(['proxy-managed', 'proxy_managed'])
 
+export function isMaskedProviderApiKey(value: string | undefined): boolean {
+  const normalized = value?.trim() ?? ''
+  if (!normalized) return false
+  if (normalized === API_KEY_JSON_PLACEHOLDER) return true
+  return /^(?:\*{3,}|•{3,})(?:.{0,4})$/.test(normalized)
+}
+
 const PROVIDER_SETTINGS_JSON_ENV_KEYS = new Set([
   'ANTHROPIC_BASE_URL',
   'ANTHROPIC_API_KEY',

@@ -78,6 +78,7 @@ import {
   API_KEY_JSON_PLACEHOLDER,
   maskSettingsJsonSecrets,
   restoreSettingsJsonSecrets,
+  isMaskedProviderApiKey,
   stripProviderSettingsJsonEnv,
 } from '../lib/providerSettingsJson'
 import { copyTextToClipboard } from '../components/chat/clipboard'
@@ -1238,7 +1239,9 @@ function ProviderFormModal({ open, onClose, mode, provider, presets }: ProviderF
   const [baseUrl, setBaseUrl] = useState(provider?.baseUrl ?? initialPreset.baseUrl)
   const [apiFormat, setApiFormat] = useState<ApiFormat>(provider?.apiFormat ?? initialPreset.apiFormat ?? 'anthropic')
   const [authStrategy, setAuthStrategy] = useState<ProviderAuthStrategy>(provider?.authStrategy ?? getPresetAuthStrategy(initialPreset))
-  const [apiKey, setApiKey] = useState(provider?.apiKey ?? '')
+  const [apiKey, setApiKey] = useState(
+    provider && isMaskedProviderApiKey(provider.apiKey) ? '' : provider?.apiKey ?? '',
+  )
   const [showApiKey, setShowApiKey] = useState(false)
   const [notes, setNotes] = useState(provider?.notes ?? '')
   const [models, setModels] = useState<ModelMapping>(initialModels)
@@ -1742,7 +1745,7 @@ function ProviderFormModal({ open, onClose, mode, provider, presets }: ProviderF
               type={showApiKey ? 'text' : 'password'}
               value={apiKey}
               onChange={(e) => handleApiKeyChange(e.target.value)}
-              placeholder="sk-..."
+              placeholder={mode === 'edit' ? t('settings.providers.apiKeyKeep') : 'sk-...'}
               className="h-10 w-full rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 pr-10 text-sm text-[var(--color-text-primary)] outline-none transition-colors duration-150 placeholder:text-[var(--color-text-tertiary)] focus:border-[var(--color-border-focus)] focus:shadow-[var(--shadow-focus-ring)]"
             />
             <button
