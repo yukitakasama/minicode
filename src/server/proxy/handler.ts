@@ -220,6 +220,17 @@ export async function handleProxyRequest(req: Request, url: URL): Promise<Respon
     model: normalizeModelStringForAPI(body.model),
   }
 
+  // cc-switch 角色路由：Claude 侧模型 ID → 上游 GPT 等真实模型 ID
+  const upstreamModelMap = (config as { upstreamModelMap?: Record<string, string> }).upstreamModelMap
+  if (upstreamModelMap) {
+    const mapped =
+      upstreamModelMap[body.model] ||
+      upstreamModelMap[body.model.toLowerCase()]
+    if (mapped && mapped !== body.model) {
+      body = { ...body, model: normalizeModelStringForAPI(mapped) }
+    }
+  }
+
   const isStream = body.stream === true
   const baseUrl = config.baseUrl.replace(/\/+$/, '')
   const networkSettings = await loadNetworkSettings()
