@@ -214,6 +214,94 @@ describe('ModelSelector', () => {
     })
   })
 
+  it('shows cc-switch models returned as a virtual provider', async () => {
+    const setSessionRuntime = vi.fn()
+    useSettingsStore.setState({
+      locale: 'en',
+      availableModels: [
+        { id: 'ccswitch-sonnet', name: 'Sonnet: Upstream Sonnet', description: 'cc-switch Sonnet', context: '' },
+        { id: 'ccswitch-opus', name: 'Opus: Upstream Opus', description: 'cc-switch Opus', context: '' },
+      ],
+      currentModel: {
+        id: 'ccswitch-sonnet',
+        name: 'Sonnet: Upstream Sonnet',
+        description: 'cc-switch Sonnet',
+        context: '',
+      },
+      activeProviderId: 'claude-role-routing',
+      activeProviderName: 'Claude Code / cc-switch',
+    })
+    useProviderStore.setState({
+      providers: [],
+      activeId: null,
+      hasLoadedProviders: true,
+      isLoading: false,
+    })
+    useChatStore.setState({
+      setSessionRuntime,
+    } as Partial<ReturnType<typeof useChatStore.getState>>)
+
+    render(<ModelSelector runtimeKey="session-ccswitch" />)
+
+    await clickByRole(/Sonnet: Upstream Sonnet/i)
+    expect(screen.getByText('Claude Code / cc-switch')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Opus: Upstream Opus/i })).toBeInTheDocument()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Opus: Upstream Opus/i }))
+      await Promise.resolve()
+    })
+
+    expect(useSessionRuntimeStore.getState().selections['session-ccswitch']).toMatchObject({
+      providerId: 'claude-role-routing',
+      modelId: 'ccswitch-opus',
+    })
+    expect(setSessionRuntime).toHaveBeenCalledWith('session-ccswitch', expect.objectContaining({
+      providerId: 'claude-role-routing',
+      modelId: 'ccswitch-opus',
+    }))
+  })
+
+  it('does not reuse cc-switch models for the Claude Official section', async () => {
+    useHahaOAuthStore.setState({
+      status: {
+        loggedIn: true,
+        expiresAt: null,
+        scopes: [],
+        subscriptionType: null,
+      },
+    })
+    useSettingsStore.setState({
+      locale: 'en',
+      availableModels: [
+        { id: 'fable', name: 'Fable: gpt-5.6-sol', description: 'cc-switch Fable', context: '' },
+      ],
+      currentModel: {
+        id: 'fable',
+        name: 'Fable: gpt-5.6-sol',
+        description: 'cc-switch Fable',
+        context: '',
+      },
+      activeProviderId: 'claude-role-routing',
+      activeProviderName: 'Claude Code / cc-switch',
+    })
+    useProviderStore.setState({
+      providers: [],
+      activeId: null,
+      hasLoadedProviders: true,
+      isLoading: false,
+    })
+
+    render(<ModelSelector runtimeKey="session-ccswitch-official" />)
+    await clickByRole(/Fable: gpt-5.6-sol/i)
+
+    expect(screen.getByText('Claude Code / cc-switch')).toBeInTheDocument()
+    expect(screen.getByText('Claude Official')).toBeInTheDocument()
+    // One trigger button and one cc-switch menu item; Claude Official must not
+    // contribute a second menu item for the same model.
+    expect(screen.getAllByRole('button', { name: /Fable: gpt-5.6-sol/i })).toHaveLength(2)
+  })
+
   it('defaults blank provider-scoped runtime selections to the active provider main model', async () => {
     useSettingsStore.setState({
       locale: 'en',

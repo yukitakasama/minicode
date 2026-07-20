@@ -749,6 +749,61 @@ describe('Models API', () => {
     expect(body.model.id).toBe('glm-5-turbo')
   })
 
+  it('GET /api/models should prefer cc-switch role settings over a stale active provider', async () => {
+    const settingsSvc = new SettingsService()
+    const providerSvc = new ProviderService()
+    const provider = await providerSvc.addProvider({
+      presetId: 'deepseek',
+      name: 'Stale DeepSeek',
+      baseUrl: 'https://api.deepseek.com/anthropic',
+      apiKey: 'stale-key',
+      apiFormat: 'anthropic',
+      models: {
+        main: 'deepseek-v4-pro',
+        haiku: 'deepseek-v4-flash',
+        sonnet: 'deepseek-v4-pro',
+        opus: 'deepseek-v4-pro',
+      },
+    })
+    await providerSvc.activateProvider(provider.id)
+    await settingsSvc.updateUserSettings({
+      model: 'fable',
+      env: {
+        ANTHROPIC_AUTH_TOKEN: 'test-token',
+        ANTHROPIC_BASE_URL: 'https://super.example.com',
+        ANTHROPIC_DEFAULT_FABLE_MODEL: 'gpt-5.6-sol[1M]',
+        ANTHROPIC_DEFAULT_FABLE_MODEL_NAME: 'gpt-5.6-sol',
+        ANTHROPIC_DEFAULT_HAIKU_MODEL: 'gpt-5.4',
+        ANTHROPIC_DEFAULT_HAIKU_MODEL_NAME: 'gpt-5.4',
+        ANTHROPIC_DEFAULT_OPUS_MODEL: 'gpt-5.6-terra[1M]',
+        ANTHROPIC_DEFAULT_OPUS_MODEL_NAME: 'gpt-5.6-terra',
+        ANTHROPIC_DEFAULT_SONNET_MODEL: 'gpt-5.6-luna[1M]',
+        ANTHROPIC_DEFAULT_SONNET_MODEL_NAME: 'gpt-5.6-luna',
+        ANTHROPIC_MODEL: 'gpt-5.6-sol',
+        CLAUDE_CODE_SUBAGENT_MODEL: 'gpt-5.6-sol[1M]',
+      },
+    })
+
+    const listRequest = makeRequest('GET', '/api/models')
+    const listResponse = await handleModelsApi(listRequest.req, listRequest.url, listRequest.segments)
+    const listBody = await listResponse.json()
+
+    expect(listBody.provider).toMatchObject({
+      id: 'claude-role-routing',
+      name: 'Claude Code / cc-switch',
+    })
+    expect(listBody.models.map((model: { id: string }) => model.id)).toEqual(['fable', 'opus', 'sonnet', 'haiku'])
+    expect(listBody.models.map((model: { id: string }) => model.id)).not.toContain('gpt-5.6-sol[1M]')
+    expect(listBody.models.map((model: { id: string }) => model.id)).not.toContain('gpt-5.6-sol')
+    expect(listBody.models.map((model: { id: string }) => model.id)).not.toContain('deepseek-v4-pro')
+
+    const currentRequest = makeRequest('GET', '/api/models/current')
+    const currentResponse = await handleModelsApi(currentRequest.req, currentRequest.url, currentRequest.segments)
+    const currentBody = await currentResponse.json()
+    expect(currentBody.model.id).toBe('fable')
+    expect(currentBody.model.name).toContain('gpt-5.6-sol')
+  })
+
   it('PUT /api/models/current should persist to cc-haha managed settings when provider is active', async () => {
     const settingsSvc = new SettingsService()
     const providerSvc = new ProviderService()

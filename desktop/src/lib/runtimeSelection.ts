@@ -15,13 +15,14 @@ export function resolveActiveProviderRuntimeSelection(
   activeProviderName: string | null,
   providers: SavedProvider[],
   currentModelId: string | undefined,
+  activeProviderId?: string | null,
 ): RuntimeSelection | null {
   const activeProvider = activeId
     ? providers.find((provider) => provider.id === activeId)
     : activeProviderName
       ? providers.find((provider) => provider.name === activeProviderName)
       : undefined
-  const inferredProviderId = activeId ?? activeProvider?.id ?? null
+  const inferredProviderId = activeId ?? activeProvider?.id ?? activeProviderId ?? null
   if (!inferredProviderId) return null
 
   const providerMainModelId = activeProvider?.models.main.trim()
@@ -43,12 +44,14 @@ export function resolveDefaultRuntimeSelection(
   activeProviderName: string | null,
   providers: SavedProvider[],
   currentModelId: string | undefined,
+  activeProviderId?: string | null,
 ): RuntimeSelection {
   return resolveActiveProviderRuntimeSelection(
     activeId,
     activeProviderName,
     providers,
     currentModelId,
+    activeProviderId,
   ) ?? {
     providerId: null,
     modelId: currentModelId || OFFICIAL_DEFAULT_MODEL_ID,

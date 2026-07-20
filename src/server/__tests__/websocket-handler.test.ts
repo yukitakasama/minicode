@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it, mock, spyOn } from 'bun:test'
+import * as fs from 'node:fs/promises'
+import * as os from 'node:os'
+import * as path from 'node:path'
 import type { ServerWebSocket } from 'bun'
 import {
+  __isKnownRuntimeProviderIdForTests,
   __markPrewarmPendingForTests,
   __markActiveTurnForTests,
   __registerPendingUserTurnForTests,
@@ -19,6 +23,8 @@ import {
 import { conversationService } from '../services/conversationService.js'
 import { computerUseApprovalService } from '../services/computerUseApprovalService.js'
 import { sessionService } from '../services/sessionService.js'
+import { CLAUDE_ROLE_ROUTING_PROVIDER_ID } from '../services/claudeModelSelection.js'
+import { ProviderService } from '../services/providerService.js'
 
 function makeClientSocket(sessionId: string) {
   const sent: string[] = []
@@ -92,6 +98,40 @@ describe('translateCliMessage usage mapping', () => {
       permissionType: 'tool',
       allowed: false,
     }])
+  })
+})
+
+describe('WebSocket runtime provider validation', () => {
+  const originalConfigDir = process.env.CLAUDE_CONFIG_DIR
+
+  afterEach(() => {
+    if (originalConfigDir === undefined) {
+      delete process.env.CLAUDE_CONFIG_DIR
+    } else {
+      process.env.CLAUDE_CONFIG_DIR = originalConfigDir
+    }
+  })
+
+  it('accepts cc-switch role routing when its user config exists', async () => {
+    const configDir = await fs.mkdtemp(path.join(os.tmpdir(), 'ws-role-routing-'))
+    process.env.CLAUDE_CONFIG_DIR = configDir
+    await fs.writeFile(path.join(configDir, 'settings.json'), JSON.stringify({
+      env: {
+        ANTHROPIC_AUTH_TOKEN: 'proxy-managed-test-token',
+        ANTHROPIC_BASE_URL: 'http://127.0.0.1:15721',
+        ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-fable-test',
+      },
+    }), 'utf-8')
+
+    try {
+      const providerService = new ProviderService()
+      const { providers } = await providerService.listProviders()
+
+      expect(__isKnownRuntimeProviderIdForTests(CLAUDE_ROLE_ROUTING_PROVIDER_ID, providers)).toBe(true)
+      expect(__isKnownRuntimeProviderIdForTests('missing-provider', providers)).toBe(false)
+    } finally {
+      await fs.rm(configDir, { recursive: true, force: true })
+    }
   })
 })
 

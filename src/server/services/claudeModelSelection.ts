@@ -370,6 +370,7 @@ export function inferApiFormatForModelsAndBaseUrl(
   let sawCompatChat = false
   let preferChat = false
   let preferResponses = false
+  let explicitResponsesModel = false
   let sawOnlyClaude = true
 
   for (const raw of modelIds) {
@@ -387,6 +388,10 @@ export function inferApiFormatForModelsAndBaseUrl(
         /^o[1-9]/.test(lower)
       ) {
         preferResponses = true
+        explicitResponsesModel = explicitResponsesModel ||
+          lower.includes('codex') ||
+          lower.includes('response') ||
+          /^o[1-9]/.test(lower)
       }
       if (
         lower.includes('gpt-3.5') ||
@@ -410,6 +415,12 @@ export function inferApiFormatForModelsAndBaseUrl(
   }
 
   if (sawGpt) {
+    // An arbitrary custom gateway does not imply Responses support just
+    // because the model is named gpt-5. Prefer the widely supported Chat
+    // Completions endpoint unless the URL or model explicitly selects Responses.
+    if (!fromUrl && baseUrl?.trim() && !explicitResponsesModel) {
+      return 'openai_chat'
+    }
     if (preferResponses) return 'openai_responses'
     if (preferChat) return 'openai_chat'
     return 'openai_responses'
@@ -704,9 +715,17 @@ function readJsonSettingsFile(filePath: string): Record<string, unknown> {
  */
 export function loadClaudeRoleRoutingProviderConfig(
   configDir = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude'),
+  sourcePreference: 'auto' | 'user' | 'user-only' = 'auto',
 ): ClaudeRoleRoutingProviderConfig | null {
   const managed = readJsonSettingsFile(path.join(configDir, 'cc-haha', 'settings.json'))
   const user = readJsonSettingsFile(path.join(configDir, 'settings.json'))
+  if (sourcePreference === 'user' || sourcePreference === 'user-only') {
+    const userConfig = hasClaudeRoleRoutingSettings(user)
+      ? buildClaudeRoleRoutingProviderConfig(user, 'user')
+      : null
+    if (userConfig) return userConfig
+    if (sourcePreference === 'user-only') return null
+  }
   const resolved = resolveClaudeRoleRoutingSettings(managed, user)
   if (!resolved) return null
   return buildClaudeRoleRoutingProviderConfig(resolved.settings, resolved.source)

@@ -140,6 +140,21 @@ export function shouldUseOpenAICodexTransport({
   )
 }
 
+function isLocalDesktopProviderProxyBaseUrl(baseUrl: string | undefined): boolean {
+  if (!baseUrl) return false
+
+  try {
+    const url = new URL(baseUrl)
+    const hostname = url.hostname.replace(/^\[|\]$/g, '').toLowerCase()
+    return (
+      (hostname === 'localhost' || hostname === '::1' || hostname === '127.0.0.1') &&
+      url.pathname.startsWith('/proxy/')
+    )
+  } catch {
+    return false
+  }
+}
+
 export async function getAnthropicClient({
   apiKey,
   maxRetries,
@@ -156,6 +171,7 @@ export async function getAnthropicClient({
   const containerId = process.env.CLAUDE_CODE_CONTAINER_ID
   const remoteSessionId = process.env.CLAUDE_CODE_REMOTE_SESSION_ID
   const clientApp = process.env.CLAUDE_AGENT_SDK_CLIENT_APP
+  const baseURL = process.env.ANTHROPIC_BASE_URL
   const customHeaders = getCustomHeaders()
   const defaultHeaders: { [key: string]: string } = {
     'x-app': 'cli',
@@ -211,6 +227,16 @@ export async function getAnthropicClient({
     await configureApiKeyHeaders(defaultHeaders, getIsNonInteractiveSession())
   }
 
+  // Electron protects local capability routes with a process-scoped token even
+  // when H5 access is disabled. The provider API key is for the upstream proxy,
+  // so it cannot authorize the CLI's request to Minicode itself.
+  if (isLocalDesktopProviderProxyBaseUrl(baseURL)) {
+    const localAccessToken = process.env.CC_HAHA_LOCAL_ACCESS_TOKEN?.trim()
+    if (localAccessToken) {
+      defaultHeaders.Authorization = `Bearer ${localAccessToken}`
+    }
+  }
+
   const resolvedFetch = usingGrok
     ? buildGrokFetch(fetchOverride, source)
     : usingOpenAICodex
@@ -220,7 +246,7 @@ export async function getAnthropicClient({
     isEnvTruthy(process.env.USE_STAGING_OAUTH)
     ? getOauthConfig().BASE_API_URL
     : undefined
-  const baseURL = stagingOAuthBaseUrl || process.env.ANTHROPIC_BASE_URL
+  const effectiveBaseURL = stagingOAuthBaseUrl || baseURL
 
   const ARGS = {
     defaultHeaders,
@@ -229,7 +255,7 @@ export async function getAnthropicClient({
     dangerouslyAllowBrowser: true,
     fetchOptions: getProxyFetchOptions({
       forAnthropicAPI: true,
-      targetUrl: baseURL,
+      targetUrl: effectiveBaseURL,
     }) as ClientOptions['fetchOptions'],
     ...(resolvedFetch && {
       fetch: resolvedFetch,

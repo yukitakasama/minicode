@@ -110,6 +110,7 @@ function buildProviderModels(
 function buildProviderChoices(
   providers: SavedProvider[],
   activeId: string | null,
+  activeProviderId: string | null,
   availableModels: ModelInfo[],
   officialName: string,
   openAIOfficialName: string,
@@ -119,7 +120,8 @@ function buildProviderChoices(
   openAIOfficialLoggedIn: boolean,
   grokOfficialLoggedIn: boolean,
 ): ProviderChoice[] {
-  const claudeOfficialModels = activeId === null && availableModels.length > 0
+  const claudeOfficialActive = activeId === null && activeProviderId === null
+  const claudeOfficialModels = claudeOfficialActive && availableModels.length > 0
     ? availableModels
     : OFFICIAL_MODELS
   const openAIOfficialModels = activeId === OPENAI_OFFICIAL_PROVIDER_ID && availableModels.length > 0
@@ -132,7 +134,7 @@ function buildProviderChoices(
   const choices: ProviderChoice[] = []
 
   if (claudeOfficialLoggedIn) {
-    choices.push(officialChoices(null, claudeOfficialModels, activeId === null, officialName))
+    choices.push(officialChoices(null, claudeOfficialModels, claudeOfficialActive, officialName))
   }
   if (openAIOfficialLoggedIn) {
     choices.push(officialChoices(
@@ -177,6 +179,7 @@ export const ModelSelector = forwardRef<ModelSelectorHandle, Props>(function Mod
   const {
     currentModel: storeModel,
     availableModels,
+    activeProviderId,
     effortLevel,
     activeProviderName,
     setModel,
@@ -333,19 +336,40 @@ export const ModelSelector = forwardRef<ModelSelectorHandle, Props>(function Mod
   )
 
   const providerChoices = useMemo(
-    () => buildProviderChoices(
-      providers,
-      activeId,
-      availableModels,
-      t('settings.providers.officialName'),
-      t('settings.providers.openaiOfficialName'),
-      t('settings.providers.grokOfficialName'),
-      roleLabels,
-      claudeOAuthStatus?.loggedIn === true,
-      openAIOAuthStatus?.loggedIn === true,
-      grokOAuthStatus?.loggedIn === true,
-    ),
-    [activeId, availableModels, providers, roleLabels, t, claudeOAuthStatus, grokOAuthStatus, openAIOAuthStatus],
+    () => {
+      const choices = buildProviderChoices(
+        providers,
+        activeId,
+        activeProviderId,
+        availableModels,
+        t('settings.providers.officialName'),
+        t('settings.providers.openaiOfficialName'),
+        t('settings.providers.grokOfficialName'),
+        roleLabels,
+        claudeOAuthStatus?.loggedIn === true,
+        openAIOAuthStatus?.loggedIn === true,
+        grokOAuthStatus?.loggedIn === true,
+      )
+
+      // cc-switch is exposed by /api/models as a virtual provider rather than
+      // a saved provider, so its models are not present in providerStore.
+      if (
+        activeProviderId &&
+        activeProviderName &&
+        !choices.some((choice) => choice.providerId === activeProviderId) &&
+        availableModels.length > 0
+      ) {
+        choices.push({
+          providerId: activeProviderId,
+          providerName: activeProviderName,
+          isDefault: true,
+          models: availableModels,
+        })
+      }
+
+      return choices
+    },
+    [activeId, activeProviderId, activeProviderName, availableModels, providers, roleLabels, t, claudeOAuthStatus, grokOAuthStatus, openAIOAuthStatus],
   )
 
   const selectedModel = isControlled
@@ -358,6 +382,7 @@ export const ModelSelector = forwardRef<ModelSelectorHandle, Props>(function Mod
       activeProviderName,
       providers,
       storeModel?.id,
+      activeProviderId,
     )
     : null
 

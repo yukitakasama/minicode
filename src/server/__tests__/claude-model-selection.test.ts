@@ -129,6 +129,17 @@ describe('claudeModelSelection', () => {
     expect(inferApiFormatForModelIds(['gpt-5.3-codex'])).toBe('openai_responses')
   })
 
+  test('prefers Chat Completions for GPT models on an unspecified custom gateway', () => {
+    expect(inferApiFormatForModelsAndBaseUrl(
+      ['gpt-5.6-sol[1M]'],
+      'https://custom-gateway.example.com',
+    )).toBe('openai_chat')
+    expect(inferApiFormatForModelsAndBaseUrl(
+      ['gpt-5.3-codex'],
+      'https://custom-gateway.example.com',
+    )).toBe('openai_responses')
+  })
+
   test('detects DeepSeek / MIMO / Qwen style models and baseUrl protocols', () => {
     expect(looksLikeOpenAICompatibleChatModelId('deepseek-chat')).toBe(true)
     expect(looksLikeOpenAICompatibleChatModelId('deepseek-v4-pro')).toBe(true)

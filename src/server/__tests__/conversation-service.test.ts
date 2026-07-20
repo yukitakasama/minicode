@@ -707,6 +707,46 @@ describe('ConversationService', () => {
     expect(env.CLAUDE_CODE_OAUTH_TOKEN).toBe('forced-official-token')
   })
 
+  test('buildChildEnv injects Claude Code / cc-switch role models in official mode', async () => {
+    await fs.writeFile(
+      path.join(tmpDir, 'settings.json'),
+      JSON.stringify({
+        env: {
+          ANTHROPIC_AUTH_TOKEN: 'sk-real-key',
+          ANTHROPIC_BASE_URL: 'https://api.openai-proxy.example/v1',
+          ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-fable-5',
+          ANTHROPIC_DEFAULT_FABLE_MODEL_NAME: 'gpt-5.6-sol',
+          ANTHROPIC_DEFAULT_HAIKU_MODEL: 'claude-haiku-4-5',
+          ANTHROPIC_DEFAULT_HAIKU_MODEL_NAME: 'gpt-5.4',
+          ANTHROPIC_DEFAULT_OPUS_MODEL: 'claude-opus-4-8',
+          ANTHROPIC_DEFAULT_OPUS_MODEL_NAME: 'gpt-5.6-terra',
+          ANTHROPIC_DEFAULT_SONNET_MODEL: 'claude-sonnet-4-6',
+          ANTHROPIC_DEFAULT_SONNET_MODEL_NAME: 'gpt-5.6-luna',
+        },
+      }),
+      'utf-8',
+    )
+
+    const service = new ConversationService() as any
+    const env = (await service.buildChildEnv('/tmp', undefined, {
+      providerId: null,
+      model: 'fable',
+    })) as Record<string, string>
+
+    expect(env.CLAUDE_CODE_ENTRYPOINT).toBeUndefined()
+    expect(env.CLAUDE_CODE_OAUTH_TOKEN).toBeUndefined()
+    expect(env.ANTHROPIC_BASE_URL).toBe(
+      'http://127.0.0.1:3456/proxy/providers/claude-role-routing',
+    )
+    expect(env.ANTHROPIC_API_KEY).toBe('proxy-managed')
+    expect(env.ANTHROPIC_MODEL).toBe('claude-fable-5')
+    expect(env.ANTHROPIC_DEFAULT_FABLE_MODEL).toBe('claude-fable-5')
+    expect(env.ANTHROPIC_DEFAULT_FABLE_MODEL_NAME).toBe('gpt-5.6-sol')
+    expect(env.ANTHROPIC_DEFAULT_OPUS_MODEL).toBe('claude-opus-4-8')
+    expect(env.ANTHROPIC_DEFAULT_SONNET_MODEL).toBe('claude-sonnet-4-6')
+    expect(env.ANTHROPIC_DEFAULT_HAIKU_MODEL).toBe('claude-haiku-4-5')
+  })
+
   test('buildChildEnv does not inject Claude OAuth when ChatGPT Official is active', async () => {
     const providerService = new ProviderService()
     await providerService.activateProvider('openai-official')

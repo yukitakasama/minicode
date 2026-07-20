@@ -12,11 +12,13 @@ case "${LINUX_ARCH}" in
     TARGET_TRIPLE="x86_64-unknown-linux-gnu"
     BUILDER_ARCH="x64"
     CANONICAL_ARCH="linux-x64"
+    UNPACKED_DIR_NAME="linux-unpacked"
     ;;
   arm64)
     TARGET_TRIPLE="aarch64-unknown-linux-gnu"
     BUILDER_ARCH="arm64"
     CANONICAL_ARCH="linux-arm64"
+    UNPACKED_DIR_NAME="linux-arm64-unpacked"
     ;;
   *)
     echo "[build-linux] Unsupported LINUX_ARCH=${LINUX_ARCH}. Expected x64 or arm64." >&2
@@ -106,8 +108,8 @@ echo "[build-linux] Packaging Electron app..."
 mkdir -p "${CANONICAL_OUTPUT_DIR}"
 find "${CANONICAL_OUTPUT_DIR}" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
 
-if [[ -d "${ELECTRON_OUTPUT_DIR}/linux-unpacked" ]]; then
-  cp -R "${ELECTRON_OUTPUT_DIR}/linux-unpacked" "${CANONICAL_OUTPUT_DIR}/"
+if [[ -d "${ELECTRON_OUTPUT_DIR}/${UNPACKED_DIR_NAME}" ]]; then
+  cp -R "${ELECTRON_OUTPUT_DIR}/${UNPACKED_DIR_NAME}" "${CANONICAL_OUTPUT_DIR}/linux-unpacked"
 else
   echo "[build-linux] Warning: linux-unpacked was not found under ${ELECTRON_OUTPUT_DIR}; package-smoke will only inspect packaged artifacts." >&2
 fi

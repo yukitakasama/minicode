@@ -152,6 +152,43 @@ describe('getAnthropicClient', () => {
     }
   })
 
+  test('passes the Electron local access token to the local provider proxy', async () => {
+    const { getAnthropicClient } = await import('./client.js')
+    const originalApiKey = process.env.ANTHROPIC_API_KEY
+    const originalAuthToken = process.env.ANTHROPIC_AUTH_TOKEN
+    const originalBaseUrl = process.env.ANTHROPIC_BASE_URL
+    const originalLocalAccessToken = process.env.CC_HAHA_LOCAL_ACCESS_TOKEN
+    const originalSimple = process.env.CLAUDE_CODE_SIMPLE
+
+    process.env.ANTHROPIC_API_KEY = 'proxy-managed'
+    delete process.env.ANTHROPIC_AUTH_TOKEN
+    process.env.ANTHROPIC_BASE_URL = 'http://127.0.0.1:3456/proxy/providers/claude-role-routing'
+    process.env.CC_HAHA_LOCAL_ACCESS_TOKEN = 'desktop-local-secret'
+    process.env.CLAUDE_CODE_SIMPLE = '1'
+
+    try {
+      const client = await getAnthropicClient({
+        maxRetries: 0,
+        model: 'gpt-5.6-sol',
+      })
+
+      expect(client._options.defaultHeaders).toMatchObject({
+        Authorization: 'Bearer desktop-local-secret',
+      })
+    } finally {
+      if (originalApiKey === undefined) delete process.env.ANTHROPIC_API_KEY
+      else process.env.ANTHROPIC_API_KEY = originalApiKey
+      if (originalAuthToken === undefined) delete process.env.ANTHROPIC_AUTH_TOKEN
+      else process.env.ANTHROPIC_AUTH_TOKEN = originalAuthToken
+      if (originalBaseUrl === undefined) delete process.env.ANTHROPIC_BASE_URL
+      else process.env.ANTHROPIC_BASE_URL = originalBaseUrl
+      if (originalLocalAccessToken === undefined) delete process.env.CC_HAHA_LOCAL_ACCESS_TOKEN
+      else process.env.CC_HAHA_LOCAL_ACCESS_TOKEN = originalLocalAccessToken
+      if (originalSimple === undefined) delete process.env.CLAUDE_CODE_SIMPLE
+      else process.env.CLAUDE_CODE_SIMPLE = originalSimple
+    }
+  })
+
   test('bypasses system proxy for local desktop provider proxy base URLs', async () => {
     const { getAnthropicClient } = await import('./client.js')
     const originalAuthToken = process.env.ANTHROPIC_AUTH_TOKEN

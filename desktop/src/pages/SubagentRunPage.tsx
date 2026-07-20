@@ -8,11 +8,12 @@ import {
 import { buildRenderModel, MessageBlock } from '../components/chat/MessageList'
 import { ToolCallGroup } from '../components/chat/ToolCallGroup'
 import { useTranslation } from '../i18n'
-import { mapHistoryMessagesToUiMessages } from '../stores/chatStore'
+import { mapHistoryMessagesToUiMessages, useChatStore } from '../stores/chatStore'
 import type { AgentTaskNotification, UIMessage } from '../types/chat'
 
 type TranslationFn = ReturnType<typeof useTranslation>
 const LIVE_RUN_REFRESH_MS = 2000
+const EMPTY_UI_MESSAGES: UIMessage[] = []
 
 export function SubagentRunPage({
   sourceSessionId,
@@ -28,6 +29,9 @@ export function SubagentRunPage({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const requestIdRef = useRef(0)
+  const liveSessionMessages = useChatStore((state) => (
+    state.sessions[sourceSessionId]?.messages ?? EMPTY_UI_MESSAGES
+  ))
 
   const load = useCallback(async (options?: { resetData?: boolean }) => {
     const requestId = requestIdRef.current + 1
@@ -95,14 +99,20 @@ export function SubagentRunPage({
           </div>
         ) : null}
         {data ? (
-          <SubagentRunDetails data={data} />
+          <SubagentRunDetails data={data} liveSessionMessages={liveSessionMessages} />
         ) : null}
       </main>
     </div>
   )
 }
 
-function SubagentRunDetails({ data }: { data: SubagentRunResponse }) {
+function SubagentRunDetails({
+  data,
+  liveSessionMessages,
+}: {
+  data: SubagentRunResponse
+  liveSessionMessages: UIMessage[]
+}) {
   const t = useTranslation()
 
   return (
@@ -139,16 +149,25 @@ function SubagentRunDetails({ data }: { data: SubagentRunResponse }) {
         ) : null}
       </div>
 
-      <ConversationSection data={data} />
+      <ConversationSection data={data} liveSessionMessages={liveSessionMessages} />
     </div>
   )
 }
 
 const EMPTY_AGENT_TASK_NOTIFICATIONS: Record<string, AgentTaskNotification> = {}
 
-function ConversationSection({ data }: { data: SubagentRunResponse }) {
+function ConversationSection({
+  data,
+  liveSessionMessages,
+}: {
+  data: SubagentRunResponse
+  liveSessionMessages: UIMessage[]
+}) {
   const t = useTranslation()
-  const conversationMessages = useMemo(() => buildSubagentConversationMessages(data), [data])
+  const conversationMessages = useMemo(
+    () => buildSubagentConversationMessages(data, liveSessionMessages),
+    [data, liveSessionMessages],
+  )
   const renderModel = useMemo(() => buildRenderModel(conversationMessages), [conversationMessages])
 
   if (renderModel.renderItems.length === 0) {
@@ -278,9 +297,15 @@ function hasPromptMessage(messages: UIMessage[], prompt: string) {
   ))
 }
 
-function buildSubagentConversationMessages(data: SubagentRunResponse): UIMessage[] {
+function buildSubagentConversationMessages(
+  data: SubagentRunResponse,
+  liveSessionMessages: UIMessage[] = [],
+): UIMessage[] {
   const transcriptMessages = mapHistoryMessagesToUiMessages(data.messages, { includeTeammateMessages: true })
-  const messages = [...transcriptMessages]
+  const messages = mergeLiveSubagentMessages(
+    transcriptMessages,
+    collectLiveSubagentMessages(liveSessionMessages, data.toolUseId),
+  )
   const prompt = data.prompt?.trim()
   const baseTimestamp = timestampMs(data.updatedAt)
 
@@ -301,6 +326,67 @@ function buildSubagentConversationMessages(data: SubagentRunResponse): UIMessage
       content: resultText,
       timestamp: baseTimestamp,
     })
+  }
+
+  return messages
+}
+
+function collectLiveSubagentMessages(messages: UIMessage[], parentToolUseId: string): UIMessage[] {
+  const childMessages = new Map<string, UIMessage[]>()
+
+  for (const message of messages) {
+    if (
+      (message.type !== 'tool_use' && message.type !== 'tool_result') ||
+      !message.parentToolUseId
+    ) {
+      continue
+    }
+
+    const siblings = childMessages.get(message.parentToolUseId) ?? []
+    siblings.push(message)
+    childMessages.set(message.parentToolUseId, siblings)
+  }
+
+  const collected: UIMessage[] = []
+  const pendingParentIds = [parentToolUseId]
+  const visitedParentIds = new Set<string>()
+
+  while (pendingParentIds.length > 0) {
+    const currentParentId = pendingParentIds.shift()!
+    if (visitedParentIds.has(currentParentId)) continue
+    visitedParentIds.add(currentParentId)
+
+    for (const message of childMessages.get(currentParentId) ?? []) {
+      collected.push(message)
+      if (message.type === 'tool_use') {
+        pendingParentIds.push(message.toolUseId)
+      }
+    }
+  }
+
+  return collected
+}
+
+function mergeLiveSubagentMessages(
+  transcriptMessages: UIMessage[],
+  liveMessages: UIMessage[],
+): UIMessage[] {
+  const messages = [...transcriptMessages]
+  const seen = new Set(
+    transcriptMessages.map((message) => (
+      message.type === 'tool_use' || message.type === 'tool_result'
+        ? `${message.type}:${message.toolUseId}`
+        : `message:${message.id}`
+    )),
+  )
+
+  for (const message of liveMessages) {
+    const key = message.type === 'tool_use' || message.type === 'tool_result'
+      ? `${message.type}:${message.toolUseId}`
+      : `message:${message.id}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    messages.push(message)
   }
 
   return messages

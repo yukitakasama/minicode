@@ -149,8 +149,8 @@ try {
   }
 
   $args = @('electron-builder', '--win', 'nsis', '--x64', '--publish', 'never')
-  $remainingArgs = @($BuilderArgs)
-  if ($remainingArgs.Count -gt 0) {
+  $remainingArgs = @($BuilderArgs) | Where-Object { $_ }
+  if ($remainingArgs -and $remainingArgs.Count -gt 0) {
     $args += $remainingArgs
   }
 
@@ -166,7 +166,7 @@ try {
 Clear-Directory -Path $canonicalOutputDir
 
 Get-ChildItem -Path $electronOutputDir -File -ErrorAction SilentlyContinue |
-  Where-Object { $_.Name -match '\.(exe|blockmap|yml)$' } |
+  Where-Object { $_.Name -match '\.(exe|zip|blockmap|yml)$' } |
   ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $canonicalOutputDir $_.Name) -Force }
 
 $winUnpackedDir = Join-Path $electronOutputDir 'win-unpacked'

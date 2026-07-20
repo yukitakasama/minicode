@@ -349,6 +349,7 @@ import {
 import { removeTeammateFromTeamFile } from '../utils/swarm/teamHelpers.js'
 import { unassignTeammateTasks } from '../utils/tasks.js'
 import { getRunningTasks } from '../utils/task/framework.js'
+import { hasBackgroundAgentWaitTimedOut } from '../utils/task/backgroundWait.js'
 import { isBackgroundTask } from '../tasks/types.js'
 import { stopTask } from '../tasks/stopTask.js'
 import { drainSdkEvents } from '../utils/sdkEventQueue.js'
@@ -1022,6 +1023,7 @@ function runHeadlessStreaming(
   let inputClosed = false
   let shutdownPromptInjected = false
   let heldBackResult: StdoutMessage | null = null
+  let backgroundAgentWaitStartedAt: number | null = null
   let abortController: AbortController | undefined
   // Same queue sendRequest() enqueues to — one FIFO for everything.
   const output = structuredIO.outbound
@@ -2359,11 +2361,30 @@ function runHeadlessStreaming(
           if (hasRunningBg || hasMainThreadQueued) {
             waitingForAgents = true
             if (!hasMainThreadQueued) {
+              if (hasRunningBg && backgroundAgentWaitStartedAt === null) {
+                backgroundAgentWaitStartedAt = Date.now()
+              }
+              if (
+                hasRunningBg &&
+                backgroundAgentWaitStartedAt !== null &&
+                hasBackgroundAgentWaitTimedOut(
+                  backgroundAgentWaitStartedAt,
+                  Date.now(),
+                )
+              ) {
+                logForDiagnosticsNoPII('error', 'background_agent_wait_timeout', {
+                  wait_ms: Date.now() - backgroundAgentWaitStartedAt,
+                })
+                waitingForAgents = false
+                continue
+              }
               runPhase = 'waiting_for_agents'
               // No commands ready yet, wait for tasks to complete
               await sleep(100)
             }
             // Loop back to drain any newly queued commands
+          } else {
+            backgroundAgentWaitStartedAt = null
           }
         }
       } while (waitingForAgents)

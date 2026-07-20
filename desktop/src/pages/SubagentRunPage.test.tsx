@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import '@testing-library/jest-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SubagentRunResponse } from '../api/subagents'
+import { useChatStore } from '../stores/chatStore'
 import { useSettingsStore } from '../stores/settingsStore'
 
 vi.mock('../api/subagents', () => ({
@@ -63,6 +64,7 @@ describe('SubagentRunPage', () => {
     cleanup()
     vi.useRealTimers()
     vi.mocked(subagentsApi.getRunByTool).mockReset()
+    useChatStore.setState({ sessions: {} })
   })
 
   it('renders SubAgent run details', async () => {
@@ -134,6 +136,43 @@ describe('SubagentRunPage', () => {
     await waitFor(() => expect(subagentsApi.getRunByTool).toHaveBeenCalledTimes(2), { timeout: 2500 })
     expect(await screen.findByText('Completed')).toBeInTheDocument()
     expect(screen.getByTestId('subagent-conversation')).toHaveTextContent('Streaming review complete')
+  })
+
+  it('renders live child tool activity before the SubAgent transcript is persisted', async () => {
+    const sessionId = 'session-live-1077'
+    const session = useChatStore.getState().getSession(sessionId)
+    useChatStore.setState({
+      sessions: {
+        [sessionId]: {
+          ...session,
+          messages: [
+            {
+              id: 'live-child-tool',
+              type: 'tool_use',
+              toolName: 'Bash',
+              toolUseId: 'child-tool-1',
+              input: { command: 'git status --short' },
+              timestamp: Date.now(),
+              parentToolUseId: 'tool-1',
+            },
+          ],
+        },
+      },
+    })
+    vi.mocked(subagentsApi.getRunByTool).mockResolvedValue(subagentRun({
+      sessionId,
+      status: 'running',
+      agentId: null,
+      messages: [],
+      prompt: 'Inspect the repository',
+      source: 'session-history',
+    }))
+
+    render(<SubagentRunPage sourceSessionId={sessionId} toolUseId="tool-1" title="SubAgent" />)
+
+    const conversation = await screen.findByTestId('subagent-conversation')
+    expect(conversation).toHaveTextContent('git status --short')
+    expect(screen.getByText('Running')).toBeInTheDocument()
   })
 
   it('keeps the tab open on API errors', async () => {

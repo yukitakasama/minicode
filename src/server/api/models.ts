@@ -187,31 +187,31 @@ function buildClaudeRoleModelList(
   config: NonNullable<ReturnType<typeof loadClaudeRoleRoutingProviderConfig>>,
 ): ApiModelInfo[] {
   const modelList: ApiModelInfo[] = []
+
+  const normalizedModelId = (modelId: string): string => modelId
+    .trim()
+    .replace(/\[1m\]$/i, '')
+    .replace(/:1m$/i, '')
+
+  const roleModelIds = new Set<string>()
   for (const entry of config.modelEntries) {
+    roleModelIds.add(normalizedModelId(entry.roleId))
+    roleModelIds.add(normalizedModelId(entry.modelId))
+    roleModelIds.add(normalizedModelId(entry.upstreamModelId))
     addUniqueModel(modelList, {
-      id: entry.modelId,
+      id: entry.roleId,
       name: entry.displayName !== entry.modelId
         ? `${entry.role}: ${entry.displayName}`
         : `${entry.role}: ${entry.modelId}`,
       description: entry.description
         || (entry.displayName !== entry.modelId
-          ? `cc-switch ${entry.role} → ${entry.displayName}`
+          ? `cc-switch ${entry.role} → ${entry.modelId}`
           : `cc-switch ${entry.role}`),
       context: '',
     })
   }
-  // 角色别名也可选
-  for (const entry of config.modelEntries) {
-    addUniqueModel(modelList, {
-      id: entry.roleId,
-      name: entry.displayName !== entry.modelId
-        ? `${entry.role} (${entry.displayName})`
-        : entry.role,
-      description: `角色别名 → ${entry.modelId}`,
-      context: '',
-    })
-  }
-  if (config.models.main) {
+
+  if (config.models.main && !roleModelIds.has(normalizedModelId(config.models.main))) {
     addUniqueModel(modelList, {
       id: config.models.main,
       name: config.models.main,
@@ -316,16 +316,7 @@ async function handleModelsList(): Promise<Response> {
     })
   }
 
-  const activeProvider = activeId ? providers.find((p) => p.id === activeId) : null
-  if (activeProvider) {
-    const modelList = buildProviderModelList(activeProvider.models)
-    return Response.json({
-      models: modelList,
-      provider: { id: activeProvider.id, name: activeProvider.name },
-    })
-  }
-
-  const roleConfig = loadClaudeRoleRoutingProviderConfig()
+  const roleConfig = loadClaudeRoleRoutingProviderConfig(undefined, activeId ? 'user-only' : 'auto')
   if (roleConfig) {
     return Response.json({
       models: buildClaudeRoleModelList(roleConfig),
@@ -334,6 +325,15 @@ async function handleModelsList(): Promise<Response> {
         name: roleConfig.name,
         apiFormat: roleConfig.apiFormat,
       },
+    })
+  }
+
+  const activeProvider = activeId ? providers.find((p) => p.id === activeId) : null
+  if (activeProvider) {
+    const modelList = buildProviderModelList(activeProvider.models)
+    return Response.json({
+      models: modelList,
+      provider: { id: activeProvider.id, name: activeProvider.name },
     })
   }
 
@@ -346,7 +346,8 @@ async function handleCurrentModel(req: Request): Promise<Response> {
     const { providers, activeId } = await providerService.listProviders()
     const isOpenAIProviderActive = isOpenAIOfficialProviderId(activeId)
     const isGrokProviderActive = isGrokOfficialProviderId(activeId)
-    const activeProvider = activeId ? providers.find((p) => p.id === activeId) : null
+    const roleConfig = loadClaudeRoleRoutingProviderConfig(undefined, activeId ? 'user-only' : 'auto')
+    const activeProvider = roleConfig ? null : activeId ? providers.find((p) => p.id === activeId) : null
     const settings = activeProvider || isOpenAIProviderActive || isGrokProviderActive
       ? await providerService.getManagedSettings()
       : await settingsService.getUserSettings()
@@ -377,7 +378,6 @@ async function handleCurrentModel(req: Request): Promise<Response> {
         currentModelName = currentModelId
       }
     } else {
-      const roleConfig = loadClaudeRoleRoutingProviderConfig()
       if (roleConfig) {
         const userSettings = await settingsService.getUserSettings()
         const userModel = typeof userSettings.model === 'string' ? userSettings.model.trim() : ''
@@ -401,7 +401,7 @@ async function handleCurrentModel(req: Request): Promise<Response> {
 
     // Build available models for name lookup
     const roleConfigForLookup = !isOpenAIProviderActive && !isGrokProviderActive && !activeProvider
-      ? loadClaudeRoleRoutingProviderConfig()
+      ? roleConfig
       : null
     const availableModels = isOpenAIProviderActive
       ? await getOpenAIModelList()
@@ -446,7 +446,21 @@ async function handleCurrentModel(req: Request): Promise<Response> {
       updates.modelContext = undefined
     }
     const { activeId } = await providerService.listProviders()
-    if (activeId) {
+    const roleConfig = loadClaudeRoleRoutingProviderConfig(undefined, activeId ? 'user-only' : 'auto')
+    if (roleConfig?.source === 'managed') {
+      const currentManagedSettings = await providerService.getManagedSettings()
+      const currentEnv =
+        (currentManagedSettings.env as Record<string, string> | undefined) ?? {}
+      await providerService.updateManagedSettings({
+        ...updates,
+        env: {
+          ...currentEnv,
+          ...attributionHeaderEnvForModel(baseId),
+        },
+      })
+    } else if (roleConfig?.source === 'user') {
+      await settingsService.updateUserSettings(updates)
+    } else if (activeId) {
       const currentManagedSettings = await providerService.getManagedSettings()
       const currentEnv =
         (currentManagedSettings.env as Record<string, string> | undefined) ?? {}

@@ -152,10 +152,10 @@ try {
 Clear-Directory -Path $canonicalOutputDir
 
 Get-ChildItem -Path $electronOutputDir -File -ErrorAction SilentlyContinue |
-  Where-Object { $_.Name -match '\.(exe|blockmap|yml)$' } |
+  Where-Object { $_.Name -match '\.(exe|zip|blockmap|yml)$' } |
   ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $canonicalOutputDir $_.Name) -Force }
 
-$winUnpackedDir = Join-Path $electronOutputDir 'win-unpacked'
+$winUnpackedDir = Join-Path $electronOutputDir 'win-arm64-unpacked'
 if (Test-Path $winUnpackedDir) {
   Copy-Item -LiteralPath $winUnpackedDir -Destination (Join-Path $canonicalOutputDir 'win-unpacked') -Recurse -Force
 } else {
@@ -168,6 +168,21 @@ Builder output: $electronOutputDir
 Canonical output: $canonicalOutputDir
 Built at: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss zzz')
 "@ -Encoding UTF8
+
+if ($env:SKIP_PACKAGE_SMOKE -eq '1') {
+  Write-Step 'Skipping package-smoke because SKIP_PACKAGE_SMOKE=1.'
+} else {
+  Write-Step 'Running package-smoke against canonical Windows artifacts...'
+  Push-Location $repoRoot
+  try {
+    & bun run test:package-smoke --platform windows --package-kind release --artifacts-dir desktop/build-artifacts/windows-arm64
+    if ($LASTEXITCODE -ne 0) {
+      throw "[build-windows-arm64] package-smoke failed (exit $LASTEXITCODE)"
+    }
+  } finally {
+    Pop-Location
+  }
+}
 
 Write-Step 'Build finished.'
 Write-Step "Canonical output: $canonicalOutputDir"

@@ -23,6 +23,7 @@ import { computerUseApprovalService } from '../services/computerUseApprovalServi
 import { sessionService } from '../services/sessionService.js'
 import { SettingsService } from '../services/settingsService.js'
 import { ProviderService } from '../services/providerService.js'
+import { CLAUDE_ROLE_ROUTING_PROVIDER_ID } from '../services/claudeModelSelection.js'
 import { isOpenAIOfficialProviderId } from '../services/openaiOfficialProvider.js'
 import { isGrokOfficialProviderId } from '../services/grokOfficialProvider.js'
 import { getOpenAICodexModelCatalog } from '../../services/openaiAuth/modelCatalog.js'
@@ -2773,6 +2774,8 @@ function isKnownRuntimeProviderId(
   return (
     isOpenAIOfficialProviderId(providerId) ||
     isGrokOfficialProviderId(providerId) ||
+    (providerId === CLAUDE_ROLE_ROUTING_PROVIDER_ID &&
+      providerService.getClaudeRoleRoutingConfig() !== null) ||
     providers.some((provider) => provider.id === providerId)
   )
 }
@@ -3110,6 +3113,13 @@ export function closeSessionConnection(sessionId: string, reason = 'session clos
 
 export function getActiveSessionIds(): string[] {
   return Array.from(activeSessions.keys())
+}
+
+export function __isKnownRuntimeProviderIdForTests(
+  providerId: string,
+  providers: Array<{ id: string }>,
+): boolean {
+  return isKnownRuntimeProviderId(providerId, providers)
 }
 
 export function __resetWebSocketHandlerStateForTests(): void {

@@ -232,7 +232,7 @@ export class ProviderService {
    * 角色模型配置，则返回虚拟 provider 配置；否则 null。
    */
   getClaudeRoleRoutingConfig(): ClaudeRoleRoutingProviderConfig | null {
-    return loadClaudeRoleRoutingProviderConfig(this.getConfigDir())
+    return loadClaudeRoleRoutingProviderConfig(this.getConfigDir(), 'user')
   }
 
   private claudeRoleRoutingToSavedProvider(

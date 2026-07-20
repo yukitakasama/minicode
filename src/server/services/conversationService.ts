@@ -1225,7 +1225,7 @@ export class ConversationService {
 
     // Claude 官方 + cc-switch：无激活 provider 时自动注入角色模型与（如需）Minicode GPT 路由
     if (!explicitProviderEnv && (options?.providerId === undefined || options?.providerId === null)) {
-      const roleConfig = loadClaudeRoleRoutingProviderConfig()
+      const roleConfig = loadClaudeRoleRoutingProviderConfig(undefined, 'user')
       if (roleConfig) {
         explicitProviderEnv = buildClaudeRoleRoutingRuntimeEnv(roleConfig, {
           serverPort: ProviderService.getServerPort(),
@@ -1243,7 +1243,7 @@ export class ConversationService {
       explicitProviderEnv = {
         ...explicitProviderEnv,
         ...buildClaudeRoleRoutingRuntimeEnv(
-          loadClaudeRoleRoutingProviderConfig()!,
+          loadClaudeRoleRoutingProviderConfig(undefined, 'user')!,
           {
             serverPort: ProviderService.getServerPort(),
             model: options.model,
@@ -1488,7 +1488,7 @@ export class ConversationService {
     }
 
     // cc-switch 角色路由（含 GPT 自动代理）优先于官方 OAuth
-    if (loadClaudeRoleRoutingProviderConfig()) {
+    if (loadClaudeRoleRoutingProviderConfig(undefined, 'user')) {
       return false
     }
 
