@@ -461,7 +461,9 @@ function buildTaskRowsFromTaskTools(messages: UIMessage[]): ActivityRow[] {
           taskId,
           openable: false,
         }),
-        status: normalizeTaskStatus(input.status),
+        // TaskUpdate can change metadata without changing status. Preserve the
+        // latest known status instead of resetting a completed task to pending.
+        status: normalizeTaskStatus(input.status ?? existing?.status),
         ...(activeForm && activeForm !== (existing?.label ?? subject) ? { description: activeForm } : {}),
       })
     }
