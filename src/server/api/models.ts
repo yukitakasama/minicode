@@ -34,6 +34,10 @@ import {
   isGrokOfficialProviderId,
 } from '../services/grokOfficialProvider.js'
 import { hahaGrokOAuthService } from '../services/hahaGrokOAuthService.js'
+import {
+  CLAUDE_ROLE_ROUTING_PROVIDER_ID,
+  loadClaudeRoleRoutingProviderConfig,
+} from '../services/claudeModelSelection.js'
 
 // ─── Fallback models (used when no provider is configured) ────────────────────
 
@@ -179,6 +183,45 @@ function getEnvConfiguredAnthropicModels(): ApiModelInfo[] {
   })
 }
 
+function buildClaudeRoleModelList(
+  config: NonNullable<ReturnType<typeof loadClaudeRoleRoutingProviderConfig>>,
+): ApiModelInfo[] {
+  const modelList: ApiModelInfo[] = []
+  for (const entry of config.modelEntries) {
+    addUniqueModel(modelList, {
+      id: entry.modelId,
+      name: entry.displayName !== entry.modelId
+        ? `${entry.role}: ${entry.displayName}`
+        : `${entry.role}: ${entry.modelId}`,
+      description: entry.description
+        || (entry.displayName !== entry.modelId
+          ? `cc-switch ${entry.role} → ${entry.displayName}`
+          : `cc-switch ${entry.role}`),
+      context: '',
+    })
+  }
+  // 角色别名也可选
+  for (const entry of config.modelEntries) {
+    addUniqueModel(modelList, {
+      id: entry.roleId,
+      name: entry.displayName !== entry.modelId
+        ? `${entry.role} (${entry.displayName})`
+        : entry.role,
+      description: `角色别名 → ${entry.modelId}`,
+      context: '',
+    })
+  }
+  if (config.models.main) {
+    addUniqueModel(modelList, {
+      id: config.models.main,
+      name: config.models.main,
+      description: 'Main model',
+      context: '',
+    })
+  }
+  return modelList
+}
+
 async function getOpenAIAuthModels(): Promise<ApiModelInfo[]> {
   if (!hasOpenAIAuthLogin()) {
     return []
@@ -188,6 +231,15 @@ async function getOpenAIAuthModels(): Promise<ApiModelInfo[]> {
 }
 
 async function getStandaloneModelList(): Promise<ApiModelInfo[]> {
+  const roleConfig = loadClaudeRoleRoutingProviderConfig()
+  if (roleConfig) {
+    const models = buildClaudeRoleModelList(roleConfig)
+    for (const model of await getOpenAIAuthModels()) {
+      addUniqueModel(models, model)
+    }
+    return models
+  }
+
   const models = [...getEnvConfiguredAnthropicModels()]
 
   if (models.length === 0) {
@@ -272,6 +324,19 @@ async function handleModelsList(): Promise<Response> {
       provider: { id: activeProvider.id, name: activeProvider.name },
     })
   }
+
+  const roleConfig = loadClaudeRoleRoutingProviderConfig()
+  if (roleConfig) {
+    return Response.json({
+      models: buildClaudeRoleModelList(roleConfig),
+      provider: {
+        id: CLAUDE_ROLE_ROUTING_PROVIDER_ID,
+        name: roleConfig.name,
+        apiFormat: roleConfig.apiFormat,
+      },
+    })
+  }
+
   return Response.json({ models: await getStandaloneModelList(), provider: null })
 }
 
@@ -312,21 +377,41 @@ async function handleCurrentModel(req: Request): Promise<Response> {
         currentModelName = currentModelId
       }
     } else {
-      // No provider — use settings model with context tier
-      currentModelId = explicitModel || envModel || DEFAULT_MODEL
-      currentModelName = currentModelId
+      const roleConfig = loadClaudeRoleRoutingProviderConfig()
+      if (roleConfig) {
+        const userSettings = await settingsService.getUserSettings()
+        const userModel = typeof userSettings.model === 'string' ? userSettings.model.trim() : ''
+        currentModelId = explicitModel || userModel || roleConfig.models.main
+        const entry = roleConfig.modelEntries.find(
+          (item) => item.modelId === currentModelId || item.roleId === currentModelId,
+        )
+        currentModelName = entry
+          ? (entry.displayName !== entry.modelId
+            ? `${entry.role}: ${entry.displayName}`
+            : entry.modelId)
+          : currentModelId
+      } else {
+        // No provider — use settings model with context tier
+        currentModelId = explicitModel || envModel || DEFAULT_MODEL
+        currentModelName = currentModelId
+      }
     }
 
     const lookupId = contextTier ? `${currentModelId}:${contextTier}` : currentModelId
 
     // Build available models for name lookup
+    const roleConfigForLookup = !isOpenAIProviderActive && !isGrokProviderActive && !activeProvider
+      ? loadClaudeRoleRoutingProviderConfig()
+      : null
     const availableModels = isOpenAIProviderActive
       ? await getOpenAIModelList()
       : isGrokProviderActive
         ? await getGrokModelList()
         : activeProvider
           ? buildProviderModelList(activeProvider.models)
-          : await getStandaloneModelList()
+          : roleConfigForLookup
+            ? buildClaudeRoleModelList(roleConfigForLookup)
+            : await getStandaloneModelList()
 
     const modelEntry = availableModels.find((m) => m.id === lookupId)
       || availableModels.find((m) => m.id === currentModelId)

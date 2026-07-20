@@ -1913,6 +1913,7 @@ export class SessionService {
       cacheReadInputTokens: number
       cacheCreationInputTokens: number
     } | null = null
+    let lastModel: string | null = null
     let estimatedTokensFromMessages = 0
     let transcriptHasMediaInput = false
 
@@ -1931,24 +1932,38 @@ export class SessionService {
       const usage = entry.message?.usage
       const model = entry.message?.model
       if (!usage || typeof model !== 'string') continue
+      lastModel = model
 
       const inputTokens = typeof usage.input_tokens === 'number' ? usage.input_tokens : 0
       const outputTokens = typeof usage.output_tokens === 'number' ? usage.output_tokens : 0
       const cacheReadInputTokens = typeof usage.cache_read_input_tokens === 'number' ? usage.cache_read_input_tokens : 0
       const cacheCreationInputTokens = typeof usage.cache_creation_input_tokens === 'number' ? usage.cache_creation_input_tokens : 0
       const promptTokens = inputTokens + cacheReadInputTokens + cacheCreationInputTokens
-      if (promptTokens === 0 && outputTokens === 0) continue
 
-      latest = {
-        model,
-        inputTokens,
-        outputTokens,
-        cacheReadInputTokens,
-        cacheCreationInputTokens,
+      if (promptTokens !== 0 || outputTokens !== 0) {
+        latest = {
+          model,
+          inputTokens,
+          outputTokens,
+          cacheReadInputTokens,
+          cacheCreationInputTokens,
+        }
       }
     }
 
-    if (!latest) return null
+    if (!latest) {
+      if (lastModel && estimatedTokensFromMessages > 0) {
+        latest = {
+          model: lastModel,
+          inputTokens: 0,
+          outputTokens: 0,
+          cacheReadInputTokens: 0,
+          cacheCreationInputTokens: 0,
+        }
+      } else {
+        return null
+      }
+    }
 
     return await this.buildTranscriptContextEstimate(
       sessionId,
@@ -2114,6 +2129,7 @@ export class SessionService {
       cacheReadInputTokens: number
       cacheCreationInputTokens: number
     } | null = null
+    let lastModel: string | null = null
     let estimatedTokensFromMessages = 0
     let transcriptHasMediaInput = false
 
@@ -2198,6 +2214,7 @@ export class SessionService {
       const usage = entry.message?.usage
       const model = entry.message?.model
       if (!usage || typeof model !== 'string') return
+      lastModel = model
 
       const inputTokens = typeof usage.input_tokens === 'number' ? usage.input_tokens : 0
       const outputTokens = typeof usage.output_tokens === 'number' ? usage.output_tokens : 0
@@ -2329,10 +2346,20 @@ export class SessionService {
           totalWebSearchRequests,
           models: Array.from(models.values()),
         }
-    const contextEstimate = latestContextUsage
+    const effectiveContextUsage = latestContextUsage ??
+      (lastModel && estimatedTokensFromMessages > 0
+        ? {
+            model: lastModel,
+            inputTokens: 0,
+            outputTokens: 0,
+            cacheReadInputTokens: 0,
+            cacheCreationInputTokens: 0,
+          }
+        : null)
+    const contextEstimate = effectiveContextUsage
       ? await this.buildTranscriptContextEstimate(
           sessionId,
-          latestContextUsage,
+          effectiveContextUsage,
           estimatedTokensFromMessages,
           transcriptHasMediaInput,
           launchInfo,

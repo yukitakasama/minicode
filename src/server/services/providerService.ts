@@ -41,6 +41,11 @@ import {
   normalizeProvidersIndex,
 } from './providerRuntimeEnv.js'
 import {
+  CLAUDE_ROLE_ROUTING_PROVIDER_ID,
+  loadClaudeRoleRoutingProviderConfig,
+  type ClaudeRoleRoutingProviderConfig,
+} from './claudeModelSelection.js'
+import {
   getNetworkProxyFetchOptions,
   loadNetworkSettings,
   type NetworkSettings,
@@ -210,11 +215,45 @@ export class ProviderService {
     if (isGrokOfficialProviderId(id)) {
       return GROK_OFFICIAL_PROVIDER
     }
+    if (id === CLAUDE_ROLE_ROUTING_PROVIDER_ID) {
+      const roleConfig = this.getClaudeRoleRoutingConfig()
+      if (!roleConfig) throw ApiError.notFound(`Provider not found: ${id}`)
+      return this.claudeRoleRoutingToSavedProvider(roleConfig)
+    }
 
     const index = await this.readIndex()
     const provider = index.providers.find((p) => p.id === id)
     if (!provider) throw ApiError.notFound(`Provider not found: ${id}`)
     return provider
+  }
+
+  /**
+   * Claude 官方模式下，若 ~/.claude/settings.json（或 managed）含 cc-switch
+   * 角色模型配置，则返回虚拟 provider 配置；否则 null。
+   */
+  getClaudeRoleRoutingConfig(): ClaudeRoleRoutingProviderConfig | null {
+    return loadClaudeRoleRoutingProviderConfig(this.getConfigDir())
+  }
+
+  private claudeRoleRoutingToSavedProvider(
+    config: ClaudeRoleRoutingProviderConfig,
+  ): SavedProvider {
+    return {
+      id: CLAUDE_ROLE_ROUTING_PROVIDER_ID,
+      presetId: 'custom',
+      name: config.name,
+      apiKey: config.apiKey,
+      authStrategy: 'auth_token',
+      baseUrl: config.baseUrl,
+      apiFormat: config.apiFormat,
+      runtimeKind: 'anthropic_compatible',
+      models: {
+        main: config.models.main,
+        haiku: config.models.haiku,
+        sonnet: config.models.sonnet,
+        opus: config.models.opus,
+      },
+    }
   }
 
   async addProvider(input: CreateProviderInput): Promise<SavedProvider> {
@@ -377,6 +416,14 @@ export class ProviderService {
   }
 
   async getProviderRuntimeEnv(id: string): Promise<Record<string, string>> {
+    if (id === CLAUDE_ROLE_ROUTING_PROVIDER_ID) {
+      const { buildClaudeRoleRoutingRuntimeEnv } = await import('./claudeModelSelection.js')
+      const roleConfig = this.getClaudeRoleRoutingConfig()
+      if (!roleConfig) throw ApiError.notFound(`Provider not found: ${id}`)
+      return buildClaudeRoleRoutingRuntimeEnv(roleConfig, {
+        serverPort: ProviderService.serverPort,
+      })
+    }
     const provider = await this.getProvider(id)
     return this.buildManagedEnv(provider, {
       proxyPath: `/proxy/providers/${provider.id}`,
@@ -518,10 +565,23 @@ export class ProviderService {
     baseUrl: string
     apiKey: string
     apiFormat: ApiFormat
+    upstreamModelMap?: Record<string, string>
   } | null> {
     if (providerId) {
       if (isOpenAIOfficialProviderId(providerId) || isGrokOfficialProviderId(providerId)) {
         return null
+      }
+      if (providerId === CLAUDE_ROLE_ROUTING_PROVIDER_ID) {
+        const roleConfig = this.getClaudeRoleRoutingConfig()
+        if (!roleConfig || roleConfig.apiFormat === 'anthropic') return null
+        return {
+          id: roleConfig.id,
+          name: roleConfig.name,
+          baseUrl: roleConfig.baseUrl,
+          apiKey: roleConfig.apiKey,
+          apiFormat: roleConfig.apiFormat,
+          upstreamModelMap: roleConfig.upstreamModelMap,
+        }
       }
       const provider = await this.getProvider(providerId)
       return {
@@ -534,7 +594,21 @@ export class ProviderService {
     }
 
     const index = await this.readIndex()
-    if (!index.activeId) return null
+    if (!index.activeId) {
+      // Claude 官方 + cc-switch GPT 路由：无激活 provider 时也可用虚拟 role routing
+      const roleConfig = this.getClaudeRoleRoutingConfig()
+      if (roleConfig && roleConfig.apiFormat !== 'anthropic') {
+        return {
+          id: roleConfig.id,
+          name: roleConfig.name,
+          baseUrl: roleConfig.baseUrl,
+          apiKey: roleConfig.apiKey,
+          apiFormat: roleConfig.apiFormat,
+          upstreamModelMap: roleConfig.upstreamModelMap,
+        }
+      }
+      return null
+    }
     if (isOpenAIOfficialProviderId(index.activeId) || isGrokOfficialProviderId(index.activeId)) {
       return null
     }

@@ -10,9 +10,15 @@ on:
         options:
           - x64
           - arm64
+      release_tag:
+        description: 'Optional GitHub release tag to upload Linux packages to'
+        required: false
+        type: string
 
 jobs:
   build:
+    permissions:
+      contents: write
     runs-on: ${{ inputs.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
     steps:
       - uses: actions/checkout@v4
@@ -39,3 +45,15 @@ jobs:
         with:
           name: minicode-linux-${{ inputs.arch }}
           path: desktop/build-artifacts/linux-${{ inputs.arch }}/
+
+      - name: Upload Linux packages to release
+        if: inputs.release_tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          gh release upload "$RELEASE_TAG" \
+            desktop/build-artifacts/linux-${{ inputs.arch }}/*.deb \
+            desktop/build-artifacts/linux-${{ inputs.arch }}/*.AppImage \
+            desktop/build-artifacts/linux-${{ inputs.arch }}/latest-linux*.yml \
+            --clobber

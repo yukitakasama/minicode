@@ -212,6 +212,22 @@ function getCustomHaikuOption(): ModelOption | undefined {
   }
 }
 
+function getCustomFableOption(): ModelOption | undefined {
+  const is3P = hasAnthropicCompatibleThirdPartyConfig()
+  const customFableModel = process.env.ANTHROPIC_DEFAULT_FABLE_MODEL
+  if (is3P && customFableModel) {
+    const is1m = has1mContext(customFableModel)
+    return {
+      value: 'fable',
+      label: process.env.ANTHROPIC_DEFAULT_FABLE_MODEL_NAME ?? customFableModel,
+      description:
+        process.env.ANTHROPIC_DEFAULT_FABLE_MODEL_DESCRIPTION ??
+        `Custom Fable model${is1m ? ' (1M context)' : ''}`,
+      descriptionForModel: `${process.env.ANTHROPIC_DEFAULT_FABLE_MODEL_DESCRIPTION ?? `Custom Fable model${is1m ? ' with 1M context' : ''}`} (${customFableModel})`,
+    }
+  }
+}
+
 function getHaiku45Option(): ModelOption {
   const is3P = hasAnthropicCompatibleThirdPartyConfig()
   return {
@@ -344,6 +360,7 @@ function getOpenAIModelOptions(): ModelOption[] {
     return options
   }
 
+  pushUniqueOption(options, getCustomFableOption())
   pushUniqueOption(options, getCustomSonnetOption())
   pushUniqueOption(options, getCustomOpusOption())
   pushUniqueOption(options, getCustomHaikuOption())
@@ -435,6 +452,11 @@ function getModelOptionsBase(fastMode = false): ModelOption[] {
 
   // PAYG 3P: Default (Sonnet 4.5) + Sonnet (3P custom) or Sonnet 4.6/1M + Opus (3P custom) or Opus 4.1/Opus 4.7/Opus1M + Haiku + Opus 4.1
   const payg3pOptions = [getDefaultOptionForUser(fastMode)]
+
+  const customFable = getCustomFableOption()
+  if (customFable !== undefined) {
+    pushUniqueOption(payg3pOptions, customFable)
+  }
 
   const customSonnet = getCustomSonnetOption()
   if (customSonnet !== undefined) {

@@ -105,6 +105,7 @@ describe('ConversationNavigator', () => {
     expect(markerBars.every((bar) => bar?.className.includes('transition-[width,background-color,opacity]'))).toBe(true)
     expect(markerBars[1]?.className).toContain('bg-[var(--color-brand)]')
     expect((markerBars[1] as HTMLElement).style.width).toBe('12px')
+    expect(screen.getByTestId('conversation-navigation-position').textContent).toBe('2 / 2')
   })
 
   it('magnifies nearby markers as a continuous proximity wave', () => {
@@ -234,5 +235,37 @@ describe('ConversationNavigator', () => {
 
     fireEvent.blur(marker)
     expect((marker.querySelector('[aria-hidden="true"]') as HTMLElement).style.width).toBe('12px')
+  })
+
+  it('shows the active navigation position out of the total', () => {
+    const { rerender } = render(
+      <ConversationNavigator
+        mode="full"
+        items={[
+          { id: 'user-1', renderItemKey: 'user-1', renderIndex: 0, role: 'user', preview: 'First prompt', attachmentCount: 0 },
+          { id: 'assistant-1', renderItemKey: 'assistant-1', renderIndex: 1, role: 'assistant', preview: 'First answer', attachmentCount: 0 },
+          { id: 'user-2', renderItemKey: 'user-2', renderIndex: 2, role: 'user', preview: 'Second prompt', attachmentCount: 0 },
+        ]}
+        activeItemId="user-1"
+        onNavigate={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByTestId('conversation-navigation-position').textContent).toBe('1 / 3')
+
+    rerender(
+      <ConversationNavigator
+        mode="full"
+        items={[
+          { id: 'user-1', renderItemKey: 'user-1', renderIndex: 0, role: 'user', preview: 'First prompt', attachmentCount: 0 },
+          { id: 'assistant-1', renderItemKey: 'assistant-1', renderIndex: 1, role: 'assistant', preview: 'First answer', attachmentCount: 0 },
+          { id: 'user-2', renderItemKey: 'user-2', renderIndex: 2, role: 'user', preview: 'Second prompt', attachmentCount: 0 },
+        ]}
+        activeItemId="user-2"
+        onNavigate={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByTestId('conversation-navigation-position').textContent).toBe('3 / 3')
   })
 })

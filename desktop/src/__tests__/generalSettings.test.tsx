@@ -1687,6 +1687,29 @@ describe('Settings > Providers tab', () => {
     expect(MOCK_DELETE_PROVIDER).toHaveBeenCalledWith('provider-1')
   })
 
+  it('preserves a masked API key when editing an existing provider', async () => {
+    providerStoreState.updateProvider = vi.fn().mockResolvedValue(providerStoreState.providers[0])
+
+    render(<Settings />)
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Edit' })[0]!)
+    const dialog = screen.getByRole('dialog')
+    const apiKeyInput = within(dialog).getByLabelText('API Key')
+
+    expect(apiKeyInput).toHaveValue('')
+    expect(apiKeyInput).toHaveAttribute('placeholder', 'API Key (leave blank to keep current)')
+
+    fireEvent.change(dialog.querySelector('#name') as HTMLInputElement, { target: { value: 'Renamed provider' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      expect(providerStoreState.updateProvider).toHaveBeenCalledWith(
+        'provider-1',
+        expect.not.objectContaining({ apiKey: expect.anything() }),
+      )
+    })
+  })
+
   it('uses the shared dropdown for API format in the provider form', () => {
     providerStoreState.presets = [
       {

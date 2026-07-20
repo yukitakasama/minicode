@@ -541,6 +541,55 @@ describe('buildSessionActivityModel', () => {
     expect(model.badgeCount).toBe(1)
   })
 
+  it('preserves a completed status when a later TaskUpdate changes other fields', () => {
+    const model = buildSessionActivityModel({
+      sessionId: 'session-1',
+      messages: [
+        {
+          id: 'task-create',
+          type: 'tool_use',
+          toolName: 'TaskCreate',
+          toolUseId: 'task-create-call',
+          input: { subject: '更新页面' },
+          timestamp: 1000,
+        },
+        {
+          id: 'task-create-result',
+          type: 'tool_result',
+          toolUseId: 'task-create-call',
+          content: 'Task #1 created successfully: 更新页面',
+          isError: false,
+          timestamp: 1001,
+        },
+        {
+          id: 'task-complete',
+          type: 'tool_use',
+          toolName: 'TaskUpdate',
+          toolUseId: 'task-complete-call',
+          input: { taskId: '1', status: 'completed' },
+          timestamp: 1002,
+        },
+        {
+          id: 'task-follow-up',
+          type: 'tool_use',
+          toolName: 'TaskUpdate',
+          toolUseId: 'task-follow-up-call',
+          input: { taskId: '1', owner: 'agent-1' },
+          timestamp: 1003,
+        },
+      ],
+      tasks: [],
+      completedAndDismissed: false,
+      backgroundTasks: [],
+      agentNotifications: [],
+    })
+
+    expect(model.sections.tasks.rows).toEqual([
+      expect.objectContaining({ id: '1', status: 'completed' }),
+    ])
+    expect(model.badgeCount).toBe(0)
+  })
+
   it('prefers task summary rows over earlier TodoWrite rows', () => {
     const model = buildSessionActivityModel({
       sessionId: 'session-1',
