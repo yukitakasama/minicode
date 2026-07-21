@@ -25,6 +25,7 @@ import {
   type NetworkSettings,
 } from '../services/networkSettings.js'
 import { normalizeModelStringForAPI } from '../../utils/model/model.js'
+import { buildOpenAIEndpointUrl } from './upstreamUrl.js'
 import {
   createTraceCallId,
   createTraceBodySnapshot,
@@ -283,7 +284,7 @@ async function handleOpenaiChat(
     passThinkingToggle: deepSeekCompatible,
     imageContentMode: shouldUseTextOnlyOpenAIChatContent(baseUrl) ? 'text_only' : 'vision',
   })
-  const url = `${baseUrl}/v1/chat/completions`
+  const url = buildOpenAIEndpointUrl(baseUrl, 'chat/completions')
   const upstreamRequestHeaders = {
     'Content-Type': 'application/json',
     Authorization: `Bearer ${apiKey}`,
@@ -452,7 +453,7 @@ async function handleOpenaiResponses(
   promptCacheKey?: string,
 ): Promise<Response> {
   const transformed = anthropicToOpenaiResponses(body, { cacheKey: promptCacheKey })
-  const url = `${baseUrl}/v1/responses`
+  const url = buildOpenAIEndpointUrl(baseUrl, 'responses')
   const upstreamRequestHeaders = {
     'Content-Type': 'application/json',
     Authorization: `Bearer ${apiKey}`,
