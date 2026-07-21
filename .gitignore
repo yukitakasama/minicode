@@ -14,3 +14,8 @@ Thumbs.db
 desktop/.vite/
 desktop/electron-dist/
 desktop/src-tauri/binaries/
+
+# Local / generated (do not commit)
+.playwright-mcp/
+*.tsbuildinfo
+.claude/scheduled_tasks.json
