@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import {
   GROK_DEFAULT_MAIN_MODEL,
   GROK_MODEL_CATALOG,
+  getGrokCatalogContextWindowForModel,
   getGrokContextWindowForModel,
   resolveGrokModel,
 } from './models.js'
@@ -22,5 +23,12 @@ describe('Grok model catalog', () => {
     expect(resolveGrokModel('unknown-model')).toBe(GROK_DEFAULT_MAIN_MODEL)
     expect(getGrokContextWindowForModel('grok-4.5')).toBe(500_000)
     expect(getGrokContextWindowForModel('unknown-model')).toBe(500_000)
+  })
+
+  test('exact catalog lookup does not default unknown models', () => {
+    expect(getGrokCatalogContextWindowForModel('grok-4.5')).toBe(500_000)
+    expect(getGrokCatalogContextWindowForModel('grok-composer-2.5-fast')).toBe(200_000)
+    expect(getGrokCatalogContextWindowForModel('unknown-model')).toBeNull()
+    expect(getGrokCatalogContextWindowForModel('claude-sonnet-4-6')).toBeNull()
   })
 })

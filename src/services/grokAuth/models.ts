@@ -45,6 +45,20 @@ export function resolveGrokModel(modelId: string): string {
   return EXPLICIT_MODELS.has(normalized) ? normalized : GROK_DEFAULT_MAIN_MODEL
 }
 
+/**
+ * Exact catalog lookup only — does not map unknown ids to the default Grok model.
+ * Safe for global getContextWindowForModel resolution.
+ */
+export function getGrokCatalogContextWindowForModel(
+  modelId: string,
+): number | null {
+  const normalized = modelId.trim().toLowerCase()
+  const entry = GROK_MODEL_CATALOG.find(
+    (model) => model.value.toLowerCase() === normalized,
+  )
+  return entry?.contextWindow ?? null
+}
+
 export function getGrokContextWindowForModel(modelId: string): number | null {
   const resolved = resolveGrokModel(modelId)
   return GROK_MODEL_CATALOG.find((model) => model.value === resolved)?.contextWindow ?? null

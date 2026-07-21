@@ -38,6 +38,10 @@ import {
   CLAUDE_ROLE_ROUTING_PROVIDER_ID,
   loadClaudeRoleRoutingProviderConfig,
 } from '../services/claudeModelSelection.js'
+import {
+  getConfiguredOrBuiltInModelContextWindow,
+  getModelContextWindowFromEnvValue,
+} from '../../utils/model/modelContextWindows.js'
 
 // ─── Fallback models (used when no provider is configured) ────────────────────
 
@@ -94,26 +98,47 @@ function addUniqueModel(
   models.push(model)
 }
 
-function buildProviderModelList(models: {
-  main: string
-  haiku: string
-  sonnet: string
-  opus: string
-}): ApiModelInfo[] {
+function resolveModelListContext(
+  modelId: string,
+  modelContextWindows?: Record<string, number>,
+): string {
+  if (modelContextWindows && Object.keys(modelContextWindows).length > 0) {
+    const fromProvider = getModelContextWindowFromEnvValue(
+      modelId,
+      JSON.stringify(modelContextWindows),
+    )
+    if (fromProvider !== undefined) {
+      return String(fromProvider)
+    }
+  }
+
+  const builtIn = getConfiguredOrBuiltInModelContextWindow(modelId)
+  return builtIn !== undefined ? String(builtIn) : ''
+}
+
+function buildProviderModelList(
+  models: {
+    main: string
+    haiku: string
+    sonnet: string
+    opus: string
+  },
+  modelContextWindows?: Record<string, number>,
+): ApiModelInfo[] {
   const modelList: ApiModelInfo[] = []
 
   addUniqueModel(modelList, {
     id: models.main,
     name: models.main,
     description: 'Main model',
-    context: '',
+    context: resolveModelListContext(models.main, modelContextWindows),
   })
   addUniqueModel(modelList, models.haiku
     ? {
         id: models.haiku,
         name: models.haiku,
         description: 'Haiku model',
-        context: '',
+        context: resolveModelListContext(models.haiku, modelContextWindows),
       }
     : null)
   addUniqueModel(modelList, models.sonnet
@@ -121,7 +146,7 @@ function buildProviderModelList(models: {
         id: models.sonnet,
         name: models.sonnet,
         description: 'Sonnet model',
-        context: '',
+        context: resolveModelListContext(models.sonnet, modelContextWindows),
       }
     : null)
   addUniqueModel(modelList, models.opus
@@ -129,7 +154,7 @@ function buildProviderModelList(models: {
         id: models.opus,
         name: models.opus,
         description: 'Opus model',
-        context: '',
+        context: resolveModelListContext(models.opus, modelContextWindows),
       }
     : null)
 
@@ -330,7 +355,10 @@ async function handleModelsList(): Promise<Response> {
 
   const activeProvider = activeId ? providers.find((p) => p.id === activeId) : null
   if (activeProvider) {
-    const modelList = buildProviderModelList(activeProvider.models)
+    const modelList = buildProviderModelList(
+      activeProvider.models,
+      activeProvider.modelContextWindows,
+    )
     return Response.json({
       models: modelList,
       provider: { id: activeProvider.id, name: activeProvider.name },
@@ -408,7 +436,10 @@ async function handleCurrentModel(req: Request): Promise<Response> {
       : isGrokProviderActive
         ? await getGrokModelList()
         : activeProvider
-          ? buildProviderModelList(activeProvider.models)
+          ? buildProviderModelList(
+              activeProvider.models,
+              activeProvider.modelContextWindows,
+            )
           : roleConfigForLookup
             ? buildClaudeRoleModelList(roleConfigForLookup)
             : await getStandaloneModelList()

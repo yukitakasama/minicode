@@ -1,5 +1,6 @@
 // biome-ignore-all assist/source/organizeImports: ANT-ONLY import markers must not be reordered
 import { CONTEXT_1M_BETA_HEADER } from '../constants/betas.js'
+import { getGrokCatalogContextWindowForModel } from '../services/grokAuth/models.js'
 import { getOpenAICodexContextWindowForModel } from '../services/openaiAuth/models.js'
 import { getGlobalConfig } from './config.js'
 import {
@@ -10,7 +11,10 @@ import {
 import { isEnvTruthy } from './envUtils.js'
 import { getCanonicalName } from './model/model.js'
 import { getModelCapability } from './model/modelCapabilities.js'
-import { getConfiguredOrBuiltInModelContextWindow } from './model/modelContextWindows.js'
+import {
+  getConfiguredOrBuiltInModelContextWindow,
+  parseModelContextWindowSuffix,
+} from './model/modelContextWindows.js'
 
 // Default fallback when the model-specific capability is unknown.
 export const MODEL_CONTEXT_WINDOW_DEFAULT = 200_000
@@ -55,6 +59,13 @@ export function modelSupports1M(model: string): boolean {
   return canonical.includes('claude-sonnet-4') || canonical.includes('opus-4-6')
 }
 
+function applyContextWindowCap(window: number): number {
+  if (window > MODEL_CONTEXT_WINDOW_DEFAULT && is1mContextDisabled()) {
+    return MODEL_CONTEXT_WINDOW_DEFAULT
+  }
+  return window
+}
+
 export function getContextWindowForModel(
   model: string,
   betas?: string[],
@@ -73,48 +84,46 @@ export function getContextWindowForModel(
     }
   }
 
-  // [1m] suffix — explicit client-side opt-in, respected over all detection
+  // Explicit model-id suffix: [1m], [500k], :128k, [262144], etc.
+  // Takes precedence over env/built-in maps so users can self-declare any model.
+  const suffixWindow = parseModelContextWindowSuffix(model)
+  if (suffixWindow !== undefined) {
+    return applyContextWindowCap(suffixWindow)
+  }
   if (has1mContext(model)) {
-    return 1_000_000
+    return applyContextWindowCap(1_000_000)
   }
 
   const configuredWindow = getConfiguredOrBuiltInModelContextWindow(model)
   if (configuredWindow !== undefined) {
-    if (
-      configuredWindow > MODEL_CONTEXT_WINDOW_DEFAULT &&
-      is1mContextDisabled()
-    ) {
-      return MODEL_CONTEXT_WINDOW_DEFAULT
-    }
-    return configuredWindow
+    return applyContextWindowCap(configuredWindow)
   }
 
   const openAIContextWindow = getOpenAICodexContextWindowForModel(model)
   if (openAIContextWindow) {
-    return openAIContextWindow
+    return applyContextWindowCap(openAIContextWindow)
+  }
+
+  const grokContextWindow = getGrokCatalogContextWindowForModel(model)
+  if (grokContextWindow) {
+    return applyContextWindowCap(grokContextWindow)
   }
 
   const cap = getModelCapability(model)
   if (cap?.max_input_tokens && cap.max_input_tokens >= 100_000) {
-    if (
-      cap.max_input_tokens > MODEL_CONTEXT_WINDOW_DEFAULT &&
-      is1mContextDisabled()
-    ) {
-      return MODEL_CONTEXT_WINDOW_DEFAULT
-    }
-    return cap.max_input_tokens
+    return applyContextWindowCap(cap.max_input_tokens)
   }
 
   if (betas?.includes(CONTEXT_1M_BETA_HEADER) && modelSupports1M(model)) {
-    return 1_000_000
+    return applyContextWindowCap(1_000_000)
   }
   if (getSonnet1mExpTreatmentEnabled(model)) {
-    return 1_000_000
+    return applyContextWindowCap(1_000_000)
   }
   if (process.env.USER_TYPE === 'ant') {
     const antModel = resolveAntModel(model)
     if (antModel?.contextWindow) {
-      return antModel.contextWindow
+      return applyContextWindowCap(antModel.contextWindow)
     }
   }
   return MODEL_CONTEXT_WINDOW_DEFAULT

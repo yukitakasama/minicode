@@ -10,6 +10,8 @@ const DIRECT_MODEL_CONTEXT_WINDOWS: Record<string, number> = {
   'deepseek-v4-flash': 1_000_000,
   'deepseek-chat': 1_000_000,
   'deepseek-reasoner': 1_000_000,
+  'grok-4.5': 500_000,
+  'grok-composer-2.5-fast': 200_000,
   'kimi-k2.7-code': 262_144,
   'kimi-k2.7-code-highspeed': 262_144,
   'kimi-k2.6': 262_144,
@@ -52,13 +54,10 @@ const PATTERN_MODEL_CONTEXT_WINDOWS: Array<[RegExp, number]> = [
   [/qwen-long/i, 10_000_000],
 ]
 
-export function normalizeModelContextKey(model: string): string {
-  return model
-    .trim()
-    .replace(/\[1m\]$/i, '')
-    .replace(/:1m$/i, '')
-    .toLowerCase()
-}
+const CONTEXT_WINDOW_LABEL_RE = /^(\d+(?:_\d+)*)\s*([kKmM])?$/
+const CONTEXT_WINDOW_BRACKET_SUFFIX_RE = /\[(\d+(?:_\d+)*)\s*([kKmM])?\]$/i
+// Require a unit for colon form so model ids like "qwen3.6:27b" are preserved.
+const CONTEXT_WINDOW_COLON_SUFFIX_RE = /:(\d+(?:_\d+)*)([kKmM])$/i
 
 function normalizeWindow(value: unknown): number | undefined {
   if (typeof value !== 'number' || !Number.isInteger(value)) {
@@ -68,6 +67,71 @@ function normalizeWindow(value: unknown): number | undefined {
     return undefined
   }
   return value
+}
+
+/**
+ * Parse a human/config context label into a token window.
+ * Accepts: "500000", "500_000", "500k", "1m", "1M".
+ */
+export function parseContextWindowLabel(input: string): number | undefined {
+  const trimmed = input.trim()
+  if (!trimmed) {
+    return undefined
+  }
+
+  const match = trimmed.match(CONTEXT_WINDOW_LABEL_RE)
+  if (!match) {
+    return undefined
+  }
+
+  const magnitude = Number(match[1]!.replaceAll('_', ''))
+  if (!Number.isInteger(magnitude) || magnitude <= 0) {
+    return undefined
+  }
+
+  const unit = match[2]?.toLowerCase()
+  let value = magnitude
+  if (unit === 'k') {
+    value = magnitude * 1_000
+  } else if (unit === 'm') {
+    value = magnitude * 1_000_000
+  }
+
+  return normalizeWindow(value)
+}
+
+/**
+ * Parse an explicit model-id context suffix: `model[500k]`, `model:128k`, `model[262144]`.
+ */
+export function parseModelContextWindowSuffix(model: string): number | undefined {
+  const trimmed = model.trim()
+  if (!trimmed) {
+    return undefined
+  }
+
+  const bracket = trimmed.match(CONTEXT_WINDOW_BRACKET_SUFFIX_RE)
+  if (bracket) {
+    return parseContextWindowLabel(`${bracket[1]}${bracket[2] ?? ''}`)
+  }
+
+  const colon = trimmed.match(CONTEXT_WINDOW_COLON_SUFFIX_RE)
+  if (colon) {
+    return parseContextWindowLabel(`${colon[1]}${colon[2]}`)
+  }
+
+  return undefined
+}
+
+/** Strip client-side context window suffixes from a model id before upstream calls. */
+export function stripModelContextWindowSuffix(model: string): string {
+  return model
+    .trim()
+    .replace(CONTEXT_WINDOW_BRACKET_SUFFIX_RE, '')
+    .replace(CONTEXT_WINDOW_COLON_SUFFIX_RE, '')
+}
+
+export function normalizeModelContextKey(model: string): string {
+  return stripModelContextWindowSuffix(model).toLowerCase()
 }
 
 function normalizeConfiguredContextWindows(parsed: unknown): Record<string, number> {

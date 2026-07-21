@@ -661,5 +661,10 @@ export function getMarketingNameForModel(modelId: string): string | undefined {
 }
 
 export function normalizeModelStringForAPI(model: string): string {
-  return model.replace(/\[(1|2)m\]/gi, '')
+  // Strip client-side context window suffixes before upstream API calls.
+  // Supports legacy [1m]/[2m] anywhere, plus trailing [500k]/:128k forms.
+  return model
+    .replace(/\[(1|2)m\]/gi, '')
+    .replace(/\[(\d+(?:_\d+)*)\s*([kKmM])?\]$/i, '')
+    .replace(/:(\d+(?:_\d+)*)([kKmM])$/i, '')
 }
