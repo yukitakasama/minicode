@@ -2895,6 +2895,13 @@ export function GeneralSettings() {
             </button>
           ))}
         </div>
+        <div className="mt-3 rounded-lg border border-[var(--color-border)]/70 bg-[var(--color-surface-container)] px-3 py-2 text-[11px] leading-5 text-[var(--color-text-tertiary)]">
+          <div className="font-semibold text-[var(--color-text-secondary)]">快捷键</div>
+          <div>Enter：按当前发送设置发送 · Shift+Enter：换行</div>
+          <div>Alt+Enter：本次会话全部允许权限操作</div>
+          <div>Ctrl/Cmd+L：聚焦输入框 · Ctrl/Cmd+K：搜索会话 · Ctrl/Cmd+B：侧栏</div>
+          <div>Ctrl/Cmd+W：关闭 Tab · Ctrl/Cmd+Tab：切换 Tab · Ctrl/Cmd+,：设置</div>
+        </div>
       </div>
 
       {uiZoomSection}

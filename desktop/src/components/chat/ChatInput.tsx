@@ -4,6 +4,7 @@ import { useChatStore } from '../../stores/chatStore'
 import { SETTINGS_TAB_ID, useTabStore } from '../../stores/tabStore'
 import { useUIStore } from '../../stores/uiStore'
 import { useSessionStore } from '../../stores/sessionStore'
+import { KEYBOARD_SHORTCUT_EVENT } from '../../hooks/useKeyboardShortcuts'
 import { useSessionRuntimeStore } from '../../stores/sessionRuntimeStore'
 import { useTeamStore } from '../../stores/teamStore'
 import { useSettingsStore } from '../../stores/settingsStore'
@@ -120,6 +121,15 @@ export function ChatInput({ variant = 'default', compact = false }: ChatInputPro
   const previousActiveTabIdRef = useRef<string | null>(null)
   const inputRef = useRef(input)
   const attachmentsRef = useRef(attachments)
+
+  useEffect(() => {
+    const handleShortcut = (event: Event) => {
+      if ((event as CustomEvent<string>).detail !== 'focus-composer') return
+      textareaRef.current?.focus()
+    }
+    window.addEventListener(KEYBOARD_SHORTCUT_EVENT, handleShortcut)
+    return () => window.removeEventListener(KEYBOARD_SHORTCUT_EVENT, handleShortcut)
+  }, [])
   const pasteGenerationRef = useRef(0)
   const setComposerInput = useCallback((value: string) => {
     inputRef.current = value
@@ -1329,12 +1339,8 @@ export function ChatInput({ variant = 'default', compact = false }: ChatInputPro
                 aria-label={!isMemberSession && isActive ? t('common.stop') : isMemberSession ? t('common.send') : t('common.run')}
                 title={
                   !isMemberSession && isActive
-                    ? t('chat.stopTitle')
-                    : iconOnlyAction
-                      ? isMemberSession
-                        ? t('common.send')
-                        : t('common.run')
-                      : undefined
+                    ? `${t('chat.stopTitle')} · Ctrl/Cmd+.`
+                    : `${isMemberSession ? t('common.send') : t('common.run')} · ${chatSendBehavior === 'modifierEnter' ? 'Ctrl/Cmd+Enter' : 'Enter'}`
                 }
                 className={`flex shrink-0 items-center justify-center gap-1 rounded-lg text-xs font-semibold transition-all hover:brightness-105 disabled:opacity-30 ${
                   iconOnlyAction ? `${isMobileComposer ? 'h-11 w-11 rounded-xl px-0 py-0' : 'h-8 w-8 px-0 py-0'}` : 'w-[112px] px-3 py-1.5'

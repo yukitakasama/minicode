@@ -95,7 +95,7 @@ describe('Electron window service', () => {
         [{ bounds: { x: 0, y: 0, width: 1440, height: 900 }, workArea: { x: 0, y: 0, width: 1440, height: 860 } }],
         {},
         'linux',
-      )).toEqual(state)
+      )).toEqual({ ...state, y: 40 })
       expect(readWindowState(
         app as never,
         [{ bounds: { x: 3000, y: 3000, width: 1440, height: 900 }, workArea: { x: 3000, y: 3000, width: 1440, height: 860 } }],
@@ -121,10 +121,26 @@ describe('Electron window service', () => {
         [{ bounds: { x: 0, y: 0, width: 1440, height: 900 }, workArea: { x: 0, y: 0, width: 1440, height: 860 } }],
         {},
         'win32',
-      )).toEqual(state)
+      )).toEqual({ ...state, y: 40 })
     } finally {
       rmSync(tmp, { recursive: true, force: true })
     }
+  })
+
+  it('clamps restored oversized windows to the visible work area', () => {
+    const state = { x: 0, y: 0, width: 3840, height: 2160, maximized: false }
+    const display = {
+      bounds: { x: 0, y: 0, width: 1920, height: 1080 },
+      workArea: { x: 0, y: 0, width: 1920, height: 1040 },
+    }
+
+    expect(clampWindowStateToVisibleWorkArea(state, [display])).toEqual({
+      x: 0,
+      y: 0,
+      width: 1920,
+      height: 1040,
+      maximized: false,
+    })
   })
 
   it('clamps restored macOS windows below the menu bar work area', () => {
@@ -146,7 +162,10 @@ describe('Electron window service', () => {
         ...state,
         y: 40,
       })
-      expect(readWindowState(app as never, [display], {}, 'linux')).toEqual(state)
+      expect(readWindowState(app as never, [display], {}, 'linux')).toEqual({
+        ...state,
+        y: 40,
+      })
     } finally {
       rmSync(tmp, { recursive: true, force: true })
     }
@@ -161,6 +180,28 @@ describe('Electron window service', () => {
     }
 
     expect(captureWindowState(window as never)).toBeNull()
+  })
+
+  it('captures normal bounds instead of maximized screen bounds', () => {
+    const getBounds = vi.fn(() => ({ x: 0, y: 0, width: 3840, height: 2160 }))
+    const getNormalBounds = vi.fn(() => ({ x: 120, y: 80, width: 1280, height: 820 }))
+    const window = {
+      isDestroyed: () => false,
+      isMinimized: () => false,
+      isMaximized: () => true,
+      getBounds,
+      getNormalBounds,
+    }
+
+    expect(captureWindowState(window as never)).toEqual({
+      x: 120,
+      y: 80,
+      width: 1280,
+      height: 820,
+      maximized: true,
+    })
+    expect(getBounds).not.toHaveBeenCalled()
+    expect(getNormalBounds).toHaveBeenCalledTimes(1)
   })
 
   it('does not capture destroyed windows', () => {

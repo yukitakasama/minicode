@@ -77,13 +77,17 @@ export function clampWindowStateToVisibleWorkArea(
   if (!display) return state
 
   const workArea = display.workArea ?? display.bounds
-  const maxX = workArea.x + Math.max(0, workArea.width - state.width)
-  const maxY = workArea.y + Math.max(0, workArea.height - state.height)
+  const width = Math.min(state.width, workArea.width)
+  const height = Math.min(state.height, workArea.height)
+  const maxX = workArea.x + Math.max(0, workArea.width - width)
+  const maxY = workArea.y + Math.max(0, workArea.height - height)
 
   return {
     ...state,
     x: clamp(state.x, workArea.x, maxX),
     y: clamp(state.y, workArea.y, maxY),
+    width,
+    height,
   }
 }
 
@@ -104,9 +108,7 @@ export function readWindowState(
     const parsed = JSON.parse(readFileSync(statePath, 'utf-8')) as StoredWindowState
     if (!isPersistableWindowState(parsed)) return null
     if (!isWindowStateVisibleOnAnyDisplay(parsed, displays)) return null
-    return platform === 'darwin'
-      ? clampWindowStateToVisibleWorkArea(parsed, displays)
-      : parsed
+    return clampWindowStateToVisibleWorkArea(parsed, displays)
   } catch (error) {
     console.error(`[desktop] failed to read Electron window state ${statePath}:`, error)
     return null
@@ -137,13 +139,16 @@ export function captureWindowState(window: BrowserWindow): StoredWindowState | n
   // torn-down native window; touching it then throws "Object has been destroyed".
   if (window.isDestroyed()) return null
   if (window.isMinimized()) return null
-  const bounds = window.getBounds()
+  const maximized = window.isMaximized()
+  const bounds = maximized && typeof window.getNormalBounds === 'function'
+    ? window.getNormalBounds()
+    : window.getBounds()
   const state = {
     x: bounds.x,
     y: bounds.y,
     width: bounds.width,
     height: bounds.height,
-    maximized: window.isMaximized(),
+    maximized,
   }
   return isPersistableWindowState(state) ? state : null
 }

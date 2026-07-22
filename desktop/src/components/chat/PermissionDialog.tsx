@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { getPendingPermission, useChatStore } from '../../stores/chatStore'
 import { useTabStore } from '../../stores/tabStore'
 import { useTranslation } from '../../i18n'
@@ -129,6 +129,21 @@ export function PermissionDialog({ sessionId, requestId, toolName, input, descri
   const isPending = Boolean(pendingPermission)
   const [showRaw, setShowRaw] = useState(false)
 
+  useEffect(() => {
+    if (!isPending) return
+
+    const handlePermissionShortcut = (event: KeyboardEvent) => {
+      if (event.key !== 'Enter' || event.shiftKey || event.ctrlKey || event.metaKey) return
+      if (!targetSessionId) return
+      event.preventDefault()
+      event.stopPropagation()
+      respondToPermission(targetSessionId, requestId, true, event.altKey ? { rule: 'always' } : undefined)
+    }
+
+    document.addEventListener('keydown', handlePermissionShortcut, true)
+    return () => document.removeEventListener('keydown', handlePermissionShortcut, true)
+  }, [isPending, requestId, respondToPermission, targetSessionId])
+
   if (isExitPlanModeTool(toolName)) {
     return (
       <ExitPlanModePermissionDialog
@@ -256,6 +271,7 @@ export function PermissionDialog({ sessionId, requestId, toolName, input, descri
             variant="primary"
             size="sm"
             aria-label={`${t('permission.allow')}: ${permissionContext}`}
+            title="Enter"
             onClick={() => targetSessionId && respondToPermission(targetSessionId, requestId, true)}
             icon={
               <span aria-hidden="true" className="material-symbols-outlined text-[14px]">check</span>
@@ -267,6 +283,7 @@ export function PermissionDialog({ sessionId, requestId, toolName, input, descri
             variant="ghost"
             size="sm"
             aria-label={`${t('permission.allowForSession')}: ${permissionContext}`}
+            title="Alt+Enter"
             onClick={() => targetSessionId && respondToPermission(targetSessionId, requestId, true, { rule: 'always' })}
             icon={
               <span aria-hidden="true" className="material-symbols-outlined text-[14px]">verified</span>

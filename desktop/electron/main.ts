@@ -141,6 +141,12 @@ function previewAgentPath() {
   return path.join(appRoot(), 'src-tauri', 'resources', 'preview-agent.js')
 }
 
+function resyncWindowZoom(window: BrowserWindow): void {
+  if (window.isDestroyed()) return
+  const factor = normalizeZoomFactor(window.webContents.getZoomFactor())
+  window.webContents.setZoomFactor(factor)
+}
+
 function rendererEntry() {
   return resolveRendererEntry({
     isPackaged: app.isPackaged,
@@ -494,10 +500,17 @@ async function createMainWindow() {
     shouldQuit: () => isQuitting,
   })
 
+  const resyncMainWindowZoom = () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return
+    resyncWindowZoom(mainWindow)
+  }
   mainWindow.on('resize', () => {
     if (!mainWindow || mainWindow.isDestroyed()) return
+    resyncMainWindowZoom()
     mainWindow.webContents.send(ELECTRON_EVENT_CHANNELS.windowResized)
   })
+  mainWindow.on('maximize', resyncMainWindowZoom)
+  mainWindow.on('unmaximize', resyncMainWindowZoom)
   mainWindow.webContents.on('did-finish-load', () => {
     writeWindowSmokeSnapshot(mainWindow, 'did-finish-load')
   })

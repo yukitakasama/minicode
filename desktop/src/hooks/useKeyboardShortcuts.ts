@@ -9,6 +9,22 @@ import {
 } from '../lib/appZoom'
 import { useSettingsStore } from '../stores/settingsStore'
 
+const KEYBOARD_SHORTCUT_EVENT = 'minicode:keyboard-shortcut'
+
+function isEditableTarget(target: EventTarget | null): boolean {
+  const element = target instanceof HTMLElement ? target : null
+  return element?.isContentEditable === true ||
+    element?.tagName === 'INPUT' ||
+    element?.tagName === 'TEXTAREA' ||
+    element?.tagName === 'SELECT'
+}
+
+function dispatchKeyboardShortcut(name: string): void {
+  window.dispatchEvent(new CustomEvent(KEYBOARD_SHORTCUT_EVENT, { detail: name }))
+}
+
+export { KEYBOARD_SHORTCUT_EVENT }
+
 export function useKeyboardShortcuts() {
   const setActiveSession = useSessionStore((s) => s.setActiveSession)
   const setActiveView = useUIStore((s) => s.setActiveView)
@@ -42,12 +58,63 @@ export function useKeyboardShortcuts() {
       }
 
       const meta = e.metaKey || e.ctrlKey
+      const key = e.key.toLowerCase()
+      const editable = isEditableTarget(e.target)
+
+      if (meta && !editable && key === 'b') {
+        e.preventDefault()
+        dispatchKeyboardShortcut('toggle-sidebar')
+        return
+      }
+
+      if (meta && !editable && key === 'l') {
+        e.preventDefault()
+        dispatchKeyboardShortcut('focus-composer')
+        return
+      }
+
+      if (meta && !editable && key === 'w') {
+        e.preventDefault()
+        dispatchKeyboardShortcut('close-tab')
+        return
+      }
+
+      if (meta && !editable && e.shiftKey && key === 'e') {
+        e.preventDefault()
+        dispatchKeyboardShortcut('toggle-workspace')
+        return
+      }
+
+      if (meta && !editable && e.shiftKey && key === 'a') {
+        e.preventDefault()
+        dispatchKeyboardShortcut('toggle-activity')
+        return
+      }
+
+      if (meta && !editable && key === 'j') {
+        e.preventDefault()
+        dispatchKeyboardShortcut('toggle-terminal')
+        return
+      }
+
+      if (meta && !editable && key === 'tab') {
+        e.preventDefault()
+        dispatchKeyboardShortcut(e.shiftKey ? 'previous-tab' : 'next-tab')
+        return
+      }
+
+      if (meta && !editable && /^[1-9]$/.test(key)) {
+        e.preventDefault()
+        dispatchKeyboardShortcut(`tab-${key}`)
+        return
+      }
 
       // Cmd+N — New session
-      if (meta && e.key === 'n') {
+      if (meta && key === 'n') {
         e.preventDefault()
         setActiveSession(null)
         setActiveView('code')
+        return
       }
 
       // Cmd+K — Open global session search
@@ -57,9 +124,16 @@ export function useKeyboardShortcuts() {
       }
 
       // Ctrl+F — Open find-in-page bar
-      if (meta && e.key === 'f') {
+      if (meta && key === 'f') {
         e.preventDefault()
         openModal('findInPage')
+        return
+      }
+
+      if (meta && !editable && key === ',') {
+        e.preventDefault()
+        setActiveView('settings')
+        return
       }
 
       // Escape — Close modal or clear state
@@ -70,7 +144,7 @@ export function useKeyboardShortcuts() {
       }
 
       // Cmd+. — Stop generation
-      if (meta && e.key === '.') {
+      if (meta && key === '.') {
         if (chatStateRef.current !== 'idle' && activeTabIdRef.current) {
           e.preventDefault()
           stopGeneration(activeTabIdRef.current)

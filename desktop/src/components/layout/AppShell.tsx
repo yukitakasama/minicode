@@ -26,6 +26,10 @@ import type { Tab } from '../../stores/tabStore'
 import { getTraceLaunchRequest } from '../../lib/traceLaunch'
 import { TraceList } from '../../pages/TraceList'
 import { TraceSession } from '../../pages/TraceSession'
+import { KEYBOARD_SHORTCUT_EVENT } from '../../hooks/useKeyboardShortcuts'
+import { useWorkspacePanelStore } from '../../stores/workspacePanelStore'
+import { useTerminalPanelStore } from '../../stores/terminalPanelStore'
+import { useActivityPanelStore } from '../../stores/activityPanelStore'
 
 function isChatTab(tab: Tab | undefined) {
   return tab?.type === 'session'
@@ -47,11 +51,29 @@ export function AppShell() {
   const isMobileShell = useMobileViewport() && !desktopRuntime
   const tabs = useTabStore((s) => s.tabs)
   const activeTabId = useTabStore((s) => s.activeTabId)
+  const activeTabIdRef = useRef(activeTabId)
+  activeTabIdRef.current = activeTabId
   const setActiveTab = useTabStore((s) => s.setActiveTab)
   const activeSession = useSessionStore((s) =>
     activeTabId ? s.sessions.find((session) => session.id === activeTabId) ?? null : null,
   )
   const wasMobileShellRef = useRef(false)
+  useEffect(() => {
+    const handleShortcut = (event: Event) => {
+      const shortcut = (event as CustomEvent<string>).detail
+      if (shortcut === 'toggle-sidebar') toggleSidebar()
+      if (shortcut === 'toggle-workspace' || shortcut === 'toggle-activity' || shortcut === 'toggle-terminal') {
+        const sessionId = activeTabIdRef.current
+        if (!sessionId) return
+        if (shortcut === 'toggle-workspace') useWorkspacePanelStore.getState().togglePanel(sessionId)
+        if (shortcut === 'toggle-activity') useActivityPanelStore.getState().toggle(sessionId)
+        if (shortcut === 'toggle-terminal') useTerminalPanelStore.getState().togglePanel(sessionId)
+      }
+    }
+    window.addEventListener(KEYBOARD_SHORTCUT_EVENT, handleShortcut)
+    return () => window.removeEventListener(KEYBOARD_SHORTCUT_EVENT, handleShortcut)
+  }, [toggleSidebar])
+
   const effectiveSidebarOpen = isMobileShell ? mobileSidebarOpen : sidebarOpen
   const activeTab = tabs.find((tab) => tab.sessionId === activeTabId)
   const isActiveChatTab = isChatTab(activeTab)

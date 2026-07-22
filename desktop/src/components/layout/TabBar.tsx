@@ -29,6 +29,7 @@ import { ActionDialog } from '../shared/ActionDialog'
 import { buildSessionActivityModel, hasVisibleSessionActivity } from '../activity/sessionActivityModel'
 import { SessionActivityButton } from '../activity/SessionActivityButton'
 import { useActivityPanelStore } from '../../stores/activityPanelStore'
+import { KEYBOARD_SHORTCUT_EVENT } from '../../hooks/useKeyboardShortcuts'
 
 const TAB_WIDTH = 180
 const DRAG_START_THRESHOLD = 4
@@ -307,6 +308,32 @@ export function TabBar() {
     setContextMenu(null)
     requestCloseTabs(tabs)
   }
+
+  useEffect(() => {
+    const handleShortcut = (event: Event) => {
+      const shortcut = (event as CustomEvent<string>).detail
+      const currentIndex = tabs.findIndex((tab) => tab.sessionId === activeTabId)
+      if (shortcut === 'close-tab') {
+        const activeTab = tabs[currentIndex]
+        if (activeTab) requestCloseTabs([activeTab])
+        return
+      }
+      if (shortcut === 'next-tab' || shortcut === 'previous-tab') {
+        if (tabs.length < 2 || currentIndex < 0) return
+        const delta = shortcut === 'next-tab' ? 1 : -1
+        const nextIndex = (currentIndex + delta + tabs.length) % tabs.length
+        setActiveTab(tabs[nextIndex]!.sessionId)
+        return
+      }
+      if (shortcut.startsWith('tab-')) {
+        const index = Number(shortcut.slice(4)) - 1
+        if (Number.isInteger(index) && tabs[index]) setActiveTab(tabs[index].sessionId)
+      }
+    }
+
+    window.addEventListener(KEYBOARD_SHORTCUT_EVENT, handleShortcut)
+    return () => window.removeEventListener(KEYBOARD_SHORTCUT_EVENT, handleShortcut)
+  }, [activeTabId, requestCloseTabs, setActiveTab, tabs])
 
   const getTargetIndexFromClientX = useCallback((clientX: number) => {
     for (let index = 0; index < tabs.length; index++) {

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from '../../i18n'
 import { computerUseApi } from '../../api/computerUse'
 import { useChatStore } from '../../stores/chatStore'
@@ -74,6 +74,21 @@ export function ComputerUsePermissionModal({ sessionId, request }: Props) {
   const [openingPane, setOpeningPane] = useState<
     'Privacy_Accessibility' | 'Privacy_ScreenCapture' | null
   >(null)
+  useEffect(() => {
+    if (!request) return
+    const handleShortcut = (event: KeyboardEvent) => {
+      if (event.key !== 'Enter' || event.shiftKey || event.ctrlKey || event.metaKey) return
+      event.preventDefault()
+      event.stopPropagation()
+      respondToComputerUsePermission(
+        sessionId,
+        request.requestId,
+        buildAllowResponse(request),
+      )
+    }
+    document.addEventListener('keydown', handleShortcut, true)
+    return () => document.removeEventListener('keydown', handleShortcut, true)
+  }, [request, respondToComputerUsePermission, sessionId])
 
   const requestedFlags = useMemo(
     () =>
@@ -136,7 +151,11 @@ export function ComputerUsePermissionModal({ sessionId, request }: Props) {
             <Button variant="ghost" onClick={handleDeny}>
               {t('computerUseApproval.deny')}
             </Button>
-            <Button variant="primary" onClick={handleAllow}>
+            <Button
+              variant="primary"
+              onClick={handleAllow}
+              title="Enter"
+            >
               {t('computerUseApproval.allow')}
             </Button>
           </>
