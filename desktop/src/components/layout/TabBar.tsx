@@ -1,4 +1,4 @@
-import { forwardRef, useMemo, useRef, useState, useEffect, useCallback } from 'react'
+﻿import { forwardRef, useMemo, useRef, useState, useEffect, useCallback } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import {
   SCHEDULED_TAB_ID,
@@ -24,7 +24,7 @@ import { getDesktopHost } from '../../lib/desktopHost'
 import { hasRunningBackgroundTasks } from '../../lib/backgroundTasks'
 import { WindowControls, showWindowControls } from './WindowControls'
 import { OpenProjectMenu } from './OpenProjectMenu'
-import { Folder, FolderOpen, SquareTerminal } from 'lucide-react'
+import { Folder, FolderOpen, SquareTerminal, X } from 'lucide-react'
 import { ActionDialog } from '../shared/ActionDialog'
 import { buildSessionActivityModel, hasVisibleSessionActivity } from '../activity/sessionActivityModel'
 import { SessionActivityButton } from '../activity/SessionActivityButton'
@@ -661,9 +661,9 @@ const TabItem = forwardRef<HTMLDivElement, {
         aria-label={`Close ${tab.title || 'Untitled'}`}
         onMouseDown={(e) => { e.stopPropagation() }}
         onClick={(e) => { e.stopPropagation(); onClose() }}
-        className="flex-shrink-0 -mr-1 inline-flex h-6 w-6 items-center justify-center rounded-md bg-transparent p-0 opacity-0 transition-[background-color,opacity,color] text-[var(--color-text-tertiary)] group-hover:opacity-100 hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-secondary)] focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-border-focus)]"
+        className="flex-shrink-0 -mr-1 inline-flex h-6 w-6 items-center justify-center rounded-md bg-transparent p-0 opacity-100 transition-[background-color,color] text-[var(--color-text-tertiary)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-secondary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-border-focus)]"
       >
-        <span className="material-symbols-outlined text-[13px] leading-none">close</span>
+        <X size={13} strokeWidth={2.2} aria-hidden="true" />
       </button>
     </div>
   )

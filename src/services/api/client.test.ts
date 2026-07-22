@@ -1,4 +1,4 @@
-import { describe, expect, mock, test } from 'bun:test'
+﻿import { describe, expect, mock, test } from 'bun:test'
 import * as fs from 'node:fs/promises'
 import * as os from 'node:os'
 import * as path from 'node:path'
@@ -170,6 +170,44 @@ describe('getAnthropicClient', () => {
       const client = await getAnthropicClient({
         maxRetries: 0,
         model: 'gpt-5.6-sol',
+      })
+
+      expect(client._options.defaultHeaders).toMatchObject({
+        Authorization: 'Bearer desktop-local-secret',
+      })
+    } finally {
+      if (originalApiKey === undefined) delete process.env.ANTHROPIC_API_KEY
+      else process.env.ANTHROPIC_API_KEY = originalApiKey
+      if (originalAuthToken === undefined) delete process.env.ANTHROPIC_AUTH_TOKEN
+      else process.env.ANTHROPIC_AUTH_TOKEN = originalAuthToken
+      if (originalBaseUrl === undefined) delete process.env.ANTHROPIC_BASE_URL
+      else process.env.ANTHROPIC_BASE_URL = originalBaseUrl
+      if (originalLocalAccessToken === undefined) delete process.env.CC_HAHA_LOCAL_ACCESS_TOKEN
+      else process.env.CC_HAHA_LOCAL_ACCESS_TOKEN = originalLocalAccessToken
+      if (originalSimple === undefined) delete process.env.CLAUDE_CODE_SIMPLE
+      else process.env.CLAUDE_CODE_SIMPLE = originalSimple
+    }
+  })
+
+  test('passes the local access token for active-provider /proxy base URL', async () => {
+    const { getAnthropicClient } = await import('./client.js')
+    const originalApiKey = process.env.ANTHROPIC_API_KEY
+    const originalAuthToken = process.env.ANTHROPIC_AUTH_TOKEN
+    const originalBaseUrl = process.env.ANTHROPIC_BASE_URL
+    const originalLocalAccessToken = process.env.CC_HAHA_LOCAL_ACCESS_TOKEN
+    const originalSimple = process.env.CLAUDE_CODE_SIMPLE
+
+    process.env.ANTHROPIC_API_KEY = 'proxy-managed'
+    delete process.env.ANTHROPIC_AUTH_TOKEN
+    // Active OpenAI-compatible providers historically used `/proxy` (no trailing segment).
+    process.env.ANTHROPIC_BASE_URL = 'http://127.0.0.1:3456/proxy'
+    process.env.CC_HAHA_LOCAL_ACCESS_TOKEN = 'desktop-local-secret'
+    process.env.CLAUDE_CODE_SIMPLE = '1'
+
+    try {
+      const client = await getAnthropicClient({
+        maxRetries: 0,
+        model: 'deepseek-v4-pro',
       })
 
       expect(client._options.defaultHeaders).toMatchObject({

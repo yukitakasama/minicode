@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Provider Service — preset-based provider configuration
  *
  * Storage: ~/.claude/cc-haha/providers.json (lightweight index)
@@ -445,7 +445,13 @@ export class ProviderService {
           ...settings,
           env: {
             ...cleanedEnv,
-            ...this.buildManagedEnv(provider),
+            ...this.buildManagedEnv(provider, {
+              // Keep active OpenAI-compatible providers on the provider-scoped
+              // proxy path so local-access auth and routing stay consistent.
+              proxyPath: (provider.apiFormat ?? 'anthropic') !== 'anthropic'
+                ? `/proxy/providers/${provider.id}`
+                : undefined,
+            }),
           },
         },
         result: undefined,

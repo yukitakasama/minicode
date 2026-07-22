@@ -1,4 +1,4 @@
-import * as fs from 'fs'
+﻿import * as fs from 'fs'
 import * as path from 'path'
 
 import { MODEL_CONTEXT_WINDOWS_ENV_KEY } from '../../utils/model/modelContextWindows.js'
@@ -418,8 +418,12 @@ export function readActiveProviderManagedEnv(
     const provider = index.providers.find((entry) => entry.id === index.activeId)
     if (!provider) return null
 
+    // Scope the local proxy path to the provider id so CLI requests always hit
+    // `/proxy/providers/:id/...` (matches getProviderRuntimeEnv and local-access auth).
+    const needsProxy = (provider.apiFormat ?? 'anthropic') !== 'anthropic'
     return buildProviderManagedEnv(provider, {
       serverPort: options?.serverPort,
+      ...(needsProxy ? { proxyPath: `/proxy/providers/${provider.id}` } : {}),
     })
   } catch {
     return null

@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
+﻿import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import * as fs from 'fs/promises'
 import * as os from 'os'
 import * as path from 'path'
@@ -260,6 +260,8 @@ describe('providerRuntimeEnv', () => {
     const env = readActiveProviderManagedEnv(tmpDir)
 
     expect(env.ENABLE_TOOL_SEARCH).toBeUndefined()
+    expect(env.ANTHROPIC_BASE_URL).toBe('http://127.0.0.1:3456/proxy/providers/provider-1')
+    expect(env.ANTHROPIC_API_KEY).toBe('proxy-managed')
   })
 
   test('applies updated docs-backed preset env for domestic Anthropic-compatible providers', async () => {

@@ -1,4 +1,4 @@
-import type { ClientOptions } from '@anthropic-ai/sdk'
+﻿import type { ClientOptions } from '@anthropic-ai/sdk'
 import { createHash } from 'crypto'
 import { promises as fs } from 'fs'
 import { dirname, join } from 'path'
@@ -62,9 +62,11 @@ function getRequestUrl(input: RequestInfo | URL): string {
 function isLocalProviderProxyUrl(value: string): boolean {
   try {
     const url = new URL(value)
+    const pathname = url.pathname.replace(/\/+$/, '') || '/'
+    const isLocalProxyPath = pathname === '/proxy' || pathname.startsWith('/proxy/')
     return (
       (url.hostname === '127.0.0.1' || url.hostname === 'localhost' || url.hostname === '::1') &&
-      url.pathname.startsWith('/proxy/')
+      isLocalProxyPath
     )
   } catch {
     return false

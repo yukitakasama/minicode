@@ -1,4 +1,4 @@
-import Anthropic, { type ClientOptions } from '@anthropic-ai/sdk'
+﻿import Anthropic, { type ClientOptions } from '@anthropic-ai/sdk'
 import { randomUUID } from 'crypto'
 import type { GoogleAuth } from 'google-auth-library'
 import {
@@ -146,9 +146,13 @@ function isLocalDesktopProviderProxyBaseUrl(baseUrl: string | undefined): boolea
   try {
     const url = new URL(baseUrl)
     const hostname = url.hostname.replace(/^\[|\]$/g, '').toLowerCase()
+    // Active providers use `/proxy`; provider-scoped routes use `/proxy/providers/:id`.
+    // Both must receive the desktop local-access token under Electron.
+    const pathname = url.pathname.replace(/\/+$/, '') || '/'
+    const isLocalProxyPath = pathname === '/proxy' || pathname.startsWith('/proxy/')
     return (
       (hostname === 'localhost' || hostname === '::1' || hostname === '127.0.0.1') &&
-      url.pathname.startsWith('/proxy/')
+      isLocalProxyPath
     )
   } catch {
     return false
