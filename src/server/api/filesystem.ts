@@ -138,6 +138,7 @@ async function handleBrowse(url: URL): Promise<Response> {
   const searchQuery = url.searchParams.get('search') || ''
   const includeFiles = url.searchParams.get('includeFiles') === 'true'
   const maxResults = Math.min(parseInt(url.searchParams.get('maxResults') || '200', 10), 200)
+  const searchMode = parseFileSearchMode(url.searchParams.get('searchMode'))
 
   try {
     const stat = fs.statSync(resolvedPath)
@@ -149,6 +150,7 @@ async function handleBrowse(url: URL): Promise<Response> {
       const results = await searchFilesystemEntries(resolvedPath, searchQuery, {
         includeFiles,
         maxResults,
+        searchMode,
       })
 
       return json({
@@ -156,6 +158,7 @@ async function handleBrowse(url: URL): Promise<Response> {
         parentPath: path.dirname(resolvedPath),
         entries: results,
         query: searchQuery,
+        searchMode,
       })
     }
 
@@ -189,22 +192,35 @@ async function handleBrowse(url: URL): Promise<Response> {
   }
 }
 
+export type FileSearchMode = 'exact' | 'fuzzy' | 'auto'
+
+function parseFileSearchMode(value: string | null): FileSearchMode {
+  if (value === 'exact' || value === 'fuzzy' || value === 'auto') return value
+  return 'auto'
+}
+
 async function searchFilesystemEntries(
   rootPath: string,
   searchQuery: string,
-  options: { includeFiles: boolean; maxResults: number },
+  options: { includeFiles: boolean; maxResults: number; searchMode: FileSearchMode },
 ): Promise<FilesystemEntry[]> {
   const normalizedQuery = normalizeSearchText(searchQuery)
   if (!normalizedQuery) return []
 
   const candidates = await getSearchCandidates(rootPath, options.includeFiles)
-  const results = candidates
-    .map((entry): ScoredFilesystemEntry | null => {
-      const relativePath = entry.relativePath ?? entry.name
-      const score = scoreFilesystemEntry(entry.name, relativePath, normalizedQuery, entry.isDirectory)
-      return score > 0 ? { ...entry, score } : null
-    })
-    .filter((entry): entry is ScoredFilesystemEntry => entry !== null)
+
+  // exact / auto first pass: continuous substring + prefix matches only.
+  // fuzzy: include subsequence matching (original behavior).
+  // auto falls back to fuzzy only when no precise hits exist.
+  let results = scoreSearchCandidates(
+    candidates,
+    normalizedQuery,
+    options.searchMode === 'fuzzy' ? 'fuzzy' : 'exact',
+  )
+
+  if (options.searchMode === 'auto' && results.length === 0) {
+    results = scoreSearchCandidates(candidates, normalizedQuery, 'fuzzy')
+  }
 
   return results
     .sort((a, b) => {
@@ -219,6 +235,26 @@ async function searchFilesystemEntries(
     })
     .slice(0, options.maxResults)
     .map(({ score: _score, ...entry }) => entry)
+}
+
+function scoreSearchCandidates(
+  candidates: FilesystemEntry[],
+  normalizedQuery: string,
+  mode: 'exact' | 'fuzzy',
+): ScoredFilesystemEntry[] {
+  return candidates
+    .map((entry): ScoredFilesystemEntry | null => {
+      const relativePath = entry.relativePath ?? entry.name
+      const score = scoreFilesystemEntry(
+        entry.name,
+        relativePath,
+        normalizedQuery,
+        entry.isDirectory,
+        mode,
+      )
+      return score > 0 ? { ...entry, score } : null
+    })
+    .filter((entry): entry is ScoredFilesystemEntry => entry !== null)
 }
 
 async function getSearchCandidates(rootPath: string, includeFiles: boolean): Promise<FilesystemEntry[]> {
@@ -393,7 +429,13 @@ function normalizeSearchText(value: string): string {
     .toLowerCase()
 }
 
-function scoreFilesystemEntry(name: string, relativePath: string, query: string, isDirectory: boolean): number {
+function scoreFilesystemEntry(
+  name: string,
+  relativePath: string,
+  query: string,
+  isDirectory: boolean,
+  mode: 'exact' | 'fuzzy' = 'fuzzy',
+): number {
   const normalizedName = normalizeSearchText(name)
   const normalizedPath = normalizeSearchText(relativePath)
   const pathNoExtension = normalizedPath.replace(/\.[^/.]+$/, '')
@@ -401,6 +443,7 @@ function scoreFilesystemEntry(name: string, relativePath: string, query: string,
   const baseBoost = isDirectory ? 4 : 0
   const depthPenalty = Math.min(relativePath.split('/').length - 1, 8) * 2
 
+  // Continuous / exact-style matches (shared by exact + fuzzy modes).
   if (normalizedPath === query) return 150 + baseBoost - depthPenalty
   if (pathNoExtension === query) return 144 + baseBoost - depthPenalty
   if (normalizedPath.startsWith(pathPrefix)) return 136 + baseBoost - depthPenalty
@@ -409,6 +452,8 @@ function scoreFilesystemEntry(name: string, relativePath: string, query: string,
   if (normalizedName.startsWith(query)) return 88 + baseBoost - depthPenalty
   if (normalizedName.includes(query)) return 72 + baseBoost - depthPenalty
   if (normalizedPath.includes(query)) return 60 + baseBoost - depthPenalty
+
+  if (mode === 'exact') return 0
 
   const nameFuzzy = fuzzyScore(normalizedName, query)
   if (nameFuzzy > 0) return 44 + nameFuzzy + baseBoost - depthPenalty

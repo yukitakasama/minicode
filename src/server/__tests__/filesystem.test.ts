@@ -189,6 +189,91 @@ describe('filesystem API', () => {
     expect(srcPaths.indexOf('src/hooks')).toBeLessThan(srcPaths.indexOf('scripts/quality-gate/baseline/fixtures/cross-module-refactor/src'))
   })
 
+
+  it('exact mode only returns continuous matches and fuzzy mode keeps subsequence hits', async () => {
+    const homeFixtureDir = await fsp.mkdtemp(path.join(os.homedir(), 'claude-filesystem-test-'))
+    cleanupDirs.add(homeFixtureDir)
+    await fsp.mkdir(path.join(homeFixtureDir, 'src', 'utils'), { recursive: true })
+    await fsp.writeFile(path.join(homeFixtureDir, 'src', 'utils', 'fs-helper.ts'), 'export {}')
+    await fsp.writeFile(path.join(homeFixtureDir, 'src', 'utils', 'format.ts'), 'export {}')
+    await fsp.writeFile(path.join(homeFixtureDir, 'src', 'utils', 'a_f_b_s.ts'), 'export {}')
+    git(homeFixtureDir, 'init')
+    git(homeFixtureDir, 'add', '.')
+    git(homeFixtureDir, 'commit', '-m', 'init', '--allow-empty')
+    // re-add files if empty commit
+    git(homeFixtureDir, 'add', '.')
+    try { git(homeFixtureDir, 'commit', '-m', 'files') } catch { /* already committed */ }
+
+    const exactRes = await handleFilesystemRoute(
+      '/api/filesystem/browse',
+      makeUrl('/api/filesystem/browse', {
+        path: homeFixtureDir,
+        search: 'fs',
+        includeFiles: 'true',
+        searchMode: 'exact',
+      }),
+    )
+    expect(exactRes.status).toBe(200)
+    const exactBody = await exactRes.json() as { entries: Array<{ relativePath?: string; name: string }>; searchMode?: string }
+    expect(exactBody.searchMode).toBe('exact')
+    const exactPaths = exactBody.entries.map((e) => e.relativePath ?? e.name)
+    expect(exactPaths).toEqual(expect.arrayContaining(['src/utils/fs-helper.ts']))
+    // subsequence-only match a_f_b_s (f ... s) should not appear in exact mode
+    expect(exactPaths.some((p) => p?.endsWith('a_f_b_s.ts'))).toBe(false)
+
+    const fuzzyRes = await handleFilesystemRoute(
+      '/api/filesystem/browse',
+      makeUrl('/api/filesystem/browse', {
+        path: homeFixtureDir,
+        search: 'fs',
+        includeFiles: 'true',
+        searchMode: 'fuzzy',
+      }),
+    )
+    expect(fuzzyRes.status).toBe(200)
+    const fuzzyBody = await fuzzyRes.json() as { entries: Array<{ relativePath?: string; name: string }>; searchMode?: string }
+    expect(fuzzyBody.searchMode).toBe('fuzzy')
+    const fuzzyPaths = fuzzyBody.entries.map((e) => e.relativePath ?? e.name)
+    expect(fuzzyPaths).toEqual(expect.arrayContaining(['src/utils/fs-helper.ts']))
+    expect(fuzzyPaths.some((p) => p?.endsWith('a_f_b_s.ts'))).toBe(true)
+  })
+
+  it('auto mode falls back to fuzzy when no continuous match exists', async () => {
+    const homeFixtureDir = await fsp.mkdtemp(path.join(os.homedir(), 'claude-filesystem-test-'))
+    cleanupDirs.add(homeFixtureDir)
+    await fsp.mkdir(path.join(homeFixtureDir, 'src'), { recursive: true })
+    await fsp.writeFile(path.join(homeFixtureDir, 'src', 'ab_cde_fg.ts'), 'export {}')
+    git(homeFixtureDir, 'init')
+    git(homeFixtureDir, 'add', '.')
+    try { git(homeFixtureDir, 'commit', '-m', 'init') } catch { /* ignore */ }
+
+    const exactRes = await handleFilesystemRoute(
+      '/api/filesystem/browse',
+      makeUrl('/api/filesystem/browse', {
+        path: homeFixtureDir,
+        search: 'acf',
+        includeFiles: 'true',
+        searchMode: 'exact',
+      }),
+    )
+    const exactBody = await exactRes.json() as { entries: Array<unknown> }
+    expect(exactBody.entries).toHaveLength(0)
+
+    const autoRes = await handleFilesystemRoute(
+      '/api/filesystem/browse',
+      makeUrl('/api/filesystem/browse', {
+        path: homeFixtureDir,
+        search: 'acf',
+        includeFiles: 'true',
+        searchMode: 'auto',
+      }),
+    )
+    expect(autoRes.status).toBe(200)
+    const autoBody = await autoRes.json() as { entries: Array<{ relativePath?: string }>; searchMode?: string }
+    expect(autoBody.searchMode).toBe('auto')
+    expect(autoBody.entries.some((e) => (e.relativePath ?? '').endsWith('ab_cde_fg.ts'))).toBe(true)
+  })
+
   it('falls back to ripgrep search outside git and still respects ignore files', async () => {
     const homeFixtureDir = await fsp.mkdtemp(path.join(os.homedir(), 'claude-filesystem-test-'))
     cleanupDirs.add(homeFixtureDir)

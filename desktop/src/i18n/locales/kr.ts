@@ -1741,6 +1741,10 @@ export const kr: Record<TranslationKey, string> = {
   'dirPicker.noSubdirs': '하위 디렉터리가 없습니다',
 
   // ─── File Search ──────────────────────────────────────
+  'fileSearch.searchMode': '검색 모드',
+  'fileSearch.modeAuto': '자동',
+  'fileSearch.modeExact': '정확',
+  'fileSearch.modeFuzzy': '퍼지',
   'fileSearch.searching': '검색 중...',
   'fileSearch.noMatch': '일치하는 파일이 없습니다',
   'fileSearch.noFiles': '이 디렉터리에 파일이 없습니다',

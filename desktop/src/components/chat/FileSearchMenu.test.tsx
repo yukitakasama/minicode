@@ -56,6 +56,43 @@ describe('FileSearchMenu', () => {
     })
   })
 
+
+  it('passes selected search mode to filesystem search and defaults to auto', async () => {
+    vi.mocked(filesystemApi.search).mockResolvedValue({
+      currentPath: '/repo',
+      parentPath: '/',
+      query: 'util',
+      searchMode: 'exact',
+      entries: [
+        { name: 'utils.ts', path: '/repo/utils.ts', relativePath: 'utils.ts', isDirectory: false },
+      ],
+    })
+
+    render(
+      <FileSearchMenu
+        cwd="/repo"
+        filter="util"
+        onSelect={() => {}}
+      />,
+    )
+
+    await waitFor(() => {
+      expect(filesystemApi.search).toHaveBeenCalledWith('util', '/repo', { searchMode: 'auto' })
+    })
+
+    fireEvent.click(screen.getByTestId('file-search-mode-exact'))
+
+    await waitFor(() => {
+      expect(filesystemApi.search).toHaveBeenCalledWith('util', '/repo', { searchMode: 'exact' })
+    })
+
+    fireEvent.click(screen.getByTestId('file-search-mode-fuzzy'))
+
+    await waitFor(() => {
+      expect(filesystemApi.search).toHaveBeenCalledWith('util', '/repo', { searchMode: 'fuzzy' })
+    })
+  })
+
   it('selects directories from search results and keeps a separate drill-in action', async () => {
     const onSelect = vi.fn()
     const onNavigate = vi.fn()

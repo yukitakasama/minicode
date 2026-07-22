@@ -1741,6 +1741,10 @@ export const jp: Record<TranslationKey, string> = {
   'dirPicker.noSubdirs': 'サブディレクトリがありません',
 
   // ─── File Search ──────────────────────────────────────
+  'fileSearch.searchMode': '検索モード',
+  'fileSearch.modeAuto': '自動',
+  'fileSearch.modeExact': '完全',
+  'fileSearch.modeFuzzy': 'あいまい',
   'fileSearch.searching': '検索中...',
   'fileSearch.noMatch': '一致するファイルがありません',
   'fileSearch.noFiles': 'このディレクトリにファイルがありません',

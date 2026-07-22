@@ -1,6 +1,6 @@
 import { forwardRef, useState, useEffect, useRef, useCallback, useImperativeHandle } from 'react'
 import { ApiError } from '../../api/client'
-import { filesystemApi } from '../../api/filesystem'
+import { filesystemApi, type FileSearchMode } from '../../api/filesystem'
 import { useTranslation } from '../../i18n'
 import type { TranslationKey } from '../../i18n'
 
@@ -30,6 +30,7 @@ export const FileSearchMenu = forwardRef<FileSearchMenuHandle, Props>(({ cwd, fi
   const [errorKey, setErrorKey] = useState<TranslationKey | null>(null)
   const [currentPath, setCurrentPath] = useState(cwd)
   const [isSearchMode, setIsSearchMode] = useState(false)
+  const [searchMode, setSearchMode] = useState<FileSearchMode>('auto')
   const [loading, setLoading] = useState(false)
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [rootPath, setRootPath] = useState(cwd)
@@ -90,7 +91,7 @@ export const FileSearchMenu = forwardRef<FileSearchMenuHandle, Props>(({ cwd, fi
   }
 
   // Load directory entries
-  const loadDir = useCallback(async (dirPath: string, searchQuery: string) => {
+  const loadDir = useCallback(async (dirPath: string, searchQuery: string, mode: FileSearchMode = searchMode) => {
     setLoading(true)
     setErrorMessage(null)
     setErrorKey(null)
@@ -102,7 +103,7 @@ export const FileSearchMenu = forwardRef<FileSearchMenuHandle, Props>(({ cwd, fi
     try {
       if (searchQuery) {
         setIsSearchMode(true)
-        const result = await filesystemApi.search(searchQuery, dirPath)
+        const result = await filesystemApi.search(searchQuery, dirPath, { searchMode: mode })
         setCurrentPath(result.currentPath)
         currentPathRef.current = result.currentPath
         if (!cwd) {
@@ -129,7 +130,7 @@ export const FileSearchMenu = forwardRef<FileSearchMenuHandle, Props>(({ cwd, fi
       setErrorMessage(nextError.errorMessage)
     }
     setLoading(false)
-  }, [cwd])
+  }, [cwd, searchMode])
 
   const navigateEntry = useCallback((entry: DirEntry) => {
     if (!entry.isDirectory) return
@@ -285,6 +286,40 @@ export const FileSearchMenu = forwardRef<FileSearchMenuHandle, Props>(({ cwd, fi
         ))}
         {isSearchMode && filter ? (
           <span className="ml-auto truncate font-mono text-[11px] text-[var(--color-text-tertiary)]">@{filter}</span>
+        ) : (
+          <span className="ml-auto" />
+        )}
+        {isSearchMode ? (
+          <div
+            className="flex shrink-0 items-center gap-0.5 rounded-md border border-[var(--color-border)] p-0.5"
+            role="group"
+            aria-label={t('fileSearch.searchMode')}
+          >
+            {([
+              ['auto', 'fileSearch.modeAuto'],
+              ['exact', 'fileSearch.modeExact'],
+              ['fuzzy', 'fileSearch.modeFuzzy'],
+            ] as const).map(([mode, labelKey]) => {
+              const active = searchMode === mode
+              return (
+                <button
+                  key={mode}
+                  type="button"
+                  data-testid={`file-search-mode-${mode}`}
+                  aria-pressed={active}
+                  title={t(labelKey)}
+                  onClick={() => setSearchMode(mode)}
+                  className={`rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors ${
+                    active
+                      ? 'bg-[var(--color-surface-hover)] text-[var(--color-text-primary)]'
+                      : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'
+                  }`}
+                >
+                  {t(labelKey)}
+                </button>
+              )
+            })}
+          </div>
         ) : null}
         {loading && (
           <span className="material-symbols-outlined text-[12px] text-[var(--color-text-tertiary)] animate-spin ml-1">progress_activity</span>

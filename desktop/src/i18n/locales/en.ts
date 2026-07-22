@@ -1739,6 +1739,10 @@ export const en = {
   'dirPicker.noSubdirs': 'No subdirectories',
 
   // ─── File Search ──────────────────────────────────────
+  'fileSearch.searchMode': 'Search mode',
+  'fileSearch.modeAuto': 'Auto',
+  'fileSearch.modeExact': 'Exact',
+  'fileSearch.modeFuzzy': 'Fuzzy',
   'fileSearch.searching': 'Searching...',
   'fileSearch.noMatch': 'No files match',
   'fileSearch.noFiles': 'No files in this directory',

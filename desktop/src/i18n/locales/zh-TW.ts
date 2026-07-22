@@ -1741,6 +1741,10 @@ export const zh: Record<TranslationKey, string> = {
   'dirPicker.noSubdirs': '無子目錄',
 
   // ─── File Search ──────────────────────────────────────
+  'fileSearch.searchMode': '搜尋模式',
+  'fileSearch.modeAuto': '自動',
+  'fileSearch.modeExact': '精確',
+  'fileSearch.modeFuzzy': '模糊',
   'fileSearch.searching': '搜尋中...',
   'fileSearch.noMatch': '沒有匹配的檔案',
   'fileSearch.noFiles': '此目錄下無檔案',
