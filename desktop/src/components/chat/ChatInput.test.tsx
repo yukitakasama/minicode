@@ -1316,6 +1316,72 @@ describe('ChatInput file mentions', () => {
     })
   })
 
+  it('pastes clipboard files from Explorer as path attachments (cc-haha#1086)', async () => {
+    installElectronFileHost()
+    const getPathForFile = vi.fn().mockReturnValue('C:\\Users\\Nanmi\\Desktop\\notes.md')
+    window.desktopHost = {
+      ...window.desktopHost!,
+      capabilities: {
+        ...window.desktopHost!.capabilities,
+        filePaths: true,
+      },
+      files: {
+        getPathForFile,
+      },
+    }
+
+    render(<ChatInput compact />)
+
+    const input = screen.getByRole('textbox') as HTMLTextAreaElement
+    const file = new File(['# hello'], 'notes.md', { type: 'text/markdown' })
+    fireEvent.paste(input, {
+      clipboardData: {
+        files: [file],
+        items: [],
+      },
+    })
+
+    expect(await screen.findByText('notes.md')).toBeInTheDocument()
+    expect(getPathForFile).toHaveBeenCalledWith(file)
+
+    fireEvent.change(input, {
+      target: {
+        value: 'read this md',
+        selectionStart: 'read this md'.length,
+      },
+    })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    expect(mocks.wsSend).toHaveBeenCalledWith(sessionId, {
+      type: 'user_message',
+      content: 'read this md',
+      attachments: [
+        expect.objectContaining({
+          type: 'file',
+          name: 'notes.md',
+          path: 'C:\\Users\\Nanmi\\Desktop\\notes.md',
+          data: undefined,
+        }),
+      ],
+    })
+  })
+
+  it('does not swallow pure text paste into the composer', async () => {
+    render(<ChatInput compact />)
+    const input = screen.getByRole('textbox') as HTMLTextAreaElement
+
+    fireEvent.paste(input, {
+      clipboardData: {
+        files: [],
+        items: [{ kind: 'string', type: 'text/plain', getAsFile: () => null }],
+      },
+    })
+
+    // Text-only paste must not create attachments or block the native paste path.
+    expect(screen.queryByText(/\.md$/)).not.toBeInTheDocument()
+    expect(screen.queryByAltText(/pasted-image-/)).not.toBeInTheDocument()
+  })
+
   it('keeps slash and @ popovers outside the drop target clipping context', async () => {
     mocks.search.mockResolvedValueOnce({
       currentPath: '/repo',

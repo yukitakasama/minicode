@@ -2,6 +2,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { browserHost } from './desktopHost/browserHost'
 import {
   MAX_INLINE_ATTACHMENT_BYTES,
+  clipboardDataHasAttachableFiles,
+  clipboardDataToComposerAttachments,
+  collectClipboardFiles,
   filesToComposerAttachments,
   pathToComposerAttachment,
   selectNativeFileAttachments,
@@ -164,5 +167,71 @@ describe('composer attachment payloads', () => {
         data: undefined,
       }),
     )
+  })
+
+  it('collects clipboard files from Files list first (Explorer paste)', () => {
+    const file = makeFile('notes.md', 64, 'text/markdown')
+    const dataTransfer = {
+      files: [file],
+      items: [],
+    } as unknown as DataTransfer
+
+    expect(clipboardDataHasAttachableFiles(dataTransfer)).toBe(true)
+    expect(collectClipboardFiles(dataTransfer)).toEqual([file])
+  })
+
+  it('falls back to kind:file clipboard items when Files list is empty', () => {
+    const file = makeFile('readme.md', 32, 'text/markdown')
+    const dataTransfer = {
+      files: [],
+      items: [
+        { kind: 'string', type: 'text/plain', getAsFile: () => null },
+        { kind: 'file', type: '', getAsFile: () => file },
+      ],
+    } as unknown as DataTransfer
+
+    expect(collectClipboardFiles(dataTransfer)).toEqual([file])
+  })
+
+  it('converts clipboard markdown files to path attachments via getPathForFile', async () => {
+    const getPathForFile = vi.fn().mockReturnValue('C:\\Users\\Nanmi\\Desktop\\notes.md')
+    window.desktopHost = {
+      ...browserHost,
+      kind: 'electron',
+      isDesktop: true,
+      capabilities: {
+        ...browserHost.capabilities,
+        filePaths: true,
+      },
+      files: {
+        getPathForFile,
+      },
+    }
+
+    const file = makeFile('notes.md', 128, 'text/markdown')
+    const dataTransfer = {
+      files: [file],
+      items: [],
+    } as unknown as DataTransfer
+
+    const attachments = await clipboardDataToComposerAttachments(dataTransfer)
+    expect(getPathForFile).toHaveBeenCalledWith(file)
+    expect(attachments).toHaveLength(1)
+    expect(attachments[0]).toMatchObject({
+      name: 'notes.md',
+      type: 'file',
+      path: 'C:\\Users\\Nanmi\\Desktop\\notes.md',
+    })
+    expect(attachments[0]?.data).toBeUndefined()
+  })
+
+  it('returns empty attachments for pure text clipboard data', async () => {
+    const dataTransfer = {
+      files: [],
+      items: [{ kind: 'string', type: 'text/plain', getAsFile: () => null }],
+    } as unknown as DataTransfer
+
+    expect(clipboardDataHasAttachableFiles(dataTransfer)).toBe(false)
+    expect(await clipboardDataToComposerAttachments(dataTransfer)).toEqual([])
   })
 })

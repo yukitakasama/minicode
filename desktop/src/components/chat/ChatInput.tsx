@@ -38,6 +38,8 @@ import {
 import { useMobileViewport } from '../../hooks/useMobileViewport'
 import { isDesktopRuntime } from '../../lib/desktopRuntime'
 import {
+  clipboardDataHasAttachableFiles,
+  clipboardDataToComposerAttachments,
   filesToComposerAttachments,
   selectNativeFileAttachments,
   toTransportAttachment,
@@ -836,7 +838,30 @@ export function ChatInput({ variant = 'default', compact = false }: ChatInputPro
 
   const handlePaste = (event: React.ClipboardEvent) => {
     if (isMemberSession) return
-    const items = event.clipboardData?.items
+    const clipboardData = event.clipboardData
+    if (!clipboardData) return
+
+    // Prefer OS file paste (Explorer copy on Windows) so MD/docs attach by path.
+    // See cc-haha#1086 — drag-drop is awkward and fails under elevated windows.
+    if (clipboardDataHasAttachableFiles(clipboardData)) {
+      event.preventDefault()
+      const pasteGeneration = pasteGenerationRef.current
+      const pastedSessionId = activeTabId
+      void clipboardDataToComposerAttachments(clipboardData)
+        .then((nextAttachments) => {
+          if (pasteGeneration !== pasteGenerationRef.current) return
+          if (pastedSessionId !== useTabStore.getState().activeTabId) return
+          if (nextAttachments.length === 0) return
+          setComposerAttachments((prev) => [...prev, ...nextAttachments])
+        })
+        .catch((error) => {
+          console.warn('[attachments] Failed to read pasted files', error)
+        })
+      return
+    }
+
+    // Screenshot / image clipboard fallback when no FileList is present.
+    const items = clipboardData.items
     if (!items) return
 
     let hasImage = false

@@ -58,6 +58,42 @@ export async function dataTransferToComposerAttachments(dataTransfer: DataTransf
   return filesToComposerAttachments(dataTransfer.files)
 }
 
+/**
+ * Collect File objects from a paste/clipboard DataTransfer.
+ * Prefer the Files list (Explorer copy+paste on Windows), then kind:"file" items.
+ * See cc-haha#1086 / minicode: paste files into composer without drag-drop.
+ */
+export function collectClipboardFiles(dataTransfer: DataTransfer | null | undefined): File[] {
+  if (!dataTransfer) return []
+
+  const fromFiles = Array.from(dataTransfer.files ?? [])
+  if (fromFiles.length > 0) return fromFiles
+
+  const items = dataTransfer.items
+  if (!items) return []
+
+  const collected: File[] = []
+  for (let i = 0; i < items.length; i += 1) {
+    const item = items[i]
+    if (!item || item.kind !== 'file') continue
+    const file = item.getAsFile()
+    if (file) collected.push(file)
+  }
+  return collected
+}
+
+export function clipboardDataHasAttachableFiles(dataTransfer: DataTransfer | null | undefined): boolean {
+  return collectClipboardFiles(dataTransfer).length > 0
+}
+
+export async function clipboardDataToComposerAttachments(
+  dataTransfer: DataTransfer | null | undefined,
+): Promise<ComposerAttachment[]> {
+  const files = collectClipboardFiles(dataTransfer)
+  if (files.length === 0) return []
+  return filesToComposerAttachments(files)
+}
+
 export async function selectNativeFileAttachments(): Promise<ComposerAttachment[] | null> {
   const host = getDesktopHost()
   if (!host.isDesktop || !host.capabilities.dialogs) return null

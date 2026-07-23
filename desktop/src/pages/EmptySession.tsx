@@ -24,6 +24,8 @@ import { isDesktopRuntime } from '../lib/desktopRuntime'
 import { publicAssetPath } from '../lib/publicAsset'
 import { resolveActiveProviderRuntimeSelection } from '../lib/runtimeSelection'
 import {
+  clipboardDataHasAttachableFiles,
+  clipboardDataToComposerAttachments,
   filesToComposerAttachments,
   selectNativeFileAttachments,
   type ComposerAttachment,
@@ -472,7 +474,24 @@ export function EmptySession() {
   }
 
   const handlePaste = (event: React.ClipboardEvent) => {
-    const items = event.clipboardData?.items
+    const clipboardData = event.clipboardData
+    if (!clipboardData) return
+
+    // Prefer OS file paste (Explorer copy on Windows). See cc-haha#1086.
+    if (clipboardDataHasAttachableFiles(clipboardData)) {
+      event.preventDefault()
+      void clipboardDataToComposerAttachments(clipboardData)
+        .then((nextAttachments) => {
+          if (nextAttachments.length === 0) return
+          setAttachments((prev) => [...prev, ...nextAttachments])
+        })
+        .catch((error) => {
+          console.warn('[attachments] Failed to read pasted files', error)
+        })
+      return
+    }
+
+    const items = clipboardData.items
     if (!items) return
 
     let hasImage = false

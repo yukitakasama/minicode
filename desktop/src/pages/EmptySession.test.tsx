@@ -721,6 +721,71 @@ describe('EmptySession', () => {
     })
   })
 
+  it('pastes clipboard files into the empty-session composer as path attachments (cc-haha#1086)', async () => {
+    mocks.isTauriRuntime = true
+    const getPathForFile = vi.fn().mockReturnValue('C:\\Users\\Nanmi\\Desktop\\notes.md')
+    window.desktopHost = {
+      kind: 'electron',
+      isDesktop: true,
+      capabilities: {
+        appMode: false,
+        dialogs: true,
+        notifications: false,
+        previewWebview: false,
+        shell: false,
+        terminal: false,
+        updates: false,
+        windowControls: false,
+        zoom: false,
+        filePaths: true,
+      },
+      dialogs: {
+        open: mocks.dialogOpen,
+      },
+      files: {
+        getPathForFile,
+      },
+      webview: {
+        onDragDropEvent: vi.fn().mockResolvedValue(mocks.webviewUnlisten),
+      },
+    } as any
+
+    render(<EmptySession />)
+
+    const input = screen.getByRole('textbox') as HTMLTextAreaElement
+    const file = new File(['# notes'], 'notes.md', { type: 'text/markdown' })
+    fireEvent.paste(input, {
+      clipboardData: {
+        files: [file],
+        items: [],
+      },
+    })
+
+    expect(await screen.findByText('notes.md')).toBeInTheDocument()
+    expect(getPathForFile).toHaveBeenCalledWith(file)
+
+    fireEvent.change(input, {
+      target: { value: 'use this md', selectionStart: 'use this md'.length },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /Run/i }))
+
+    await waitFor(() => {
+      expect(mocks.createSession).toHaveBeenCalledWith({ permissionMode: 'default' })
+    })
+    expect(mocks.wsSend).toHaveBeenCalledWith('draft-session', {
+      type: 'user_message',
+      content: 'use this md',
+      attachments: [
+        expect.objectContaining({
+          type: 'file',
+          name: 'notes.md',
+          path: 'C:\\Users\\Nanmi\\Desktop\\notes.md',
+          data: undefined,
+        }),
+      ],
+    })
+  })
+
   it('keeps slash and @ popovers visible above the empty-session drop target', async () => {
     mocks.search.mockResolvedValueOnce({
       currentPath: '/workspace/project',
