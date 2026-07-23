@@ -18,6 +18,7 @@ const browserCapabilities: DesktopHostCapabilities = {
   updates: false,
   windowControls: false,
   zoom: false,
+  filePaths: false,
 }
 
 function unsupported(feature: string): never {
@@ -257,6 +258,11 @@ export const browserHost: DesktopHost = {
   zoom: {
     async set() {
       unsupported('Native app zoom')
+    },
+  },
+  files: {
+    getPathForFile() {
+      return null
     },
   },
 }

@@ -1153,7 +1153,8 @@ export const useChatStore = create<ChatStore>((set, get) => ({
             type: a.type,
             name: a.name || a.path || a.mimeType || a.type,
             path: a.path,
-            data: a.data,
+            // Never keep large base64 blobs in the chat message list when a path exists.
+            data: a.path ? undefined : a.data,
             mimeType: a.mimeType,
             lineStart: a.lineStart,
             lineEnd: a.lineEnd,

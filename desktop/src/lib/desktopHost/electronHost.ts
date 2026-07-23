@@ -18,6 +18,7 @@ export type ElectronHostBridge = {
     channel: ElectronEventChannel,
     handler: (payload: T) => void,
   ): Promise<DesktopHostUnlisten>
+  getPathForFile?(file: File): string | null
 }
 
 type ElectronUpdateMetadata = {
@@ -72,6 +73,7 @@ export function createElectronHost(bridge: ElectronHostBridge): DesktopHost {
       updates: true,
       windowControls: true,
       zoom: true,
+      filePaths: true,
     },
     runtime: {
       getServerUrl: () => invoke(ELECTRON_IPC_CHANNELS.runtimeGetServerUrl),
@@ -162,6 +164,16 @@ export function createElectronHost(bridge: ElectronHostBridge): DesktopHost {
     },
     zoom: {
       set: level => invoke(ELECTRON_IPC_CHANNELS.zoomSet, level),
+    },
+    files: {
+      getPathForFile: (file) => {
+        try {
+          const path = bridge.getPathForFile?.(file)
+          return typeof path === 'string' && path.length > 0 ? path : null
+        } catch {
+          return null
+        }
+      },
     },
   }
 }

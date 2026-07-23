@@ -18,6 +18,13 @@ export type ComposerAttachment = {
   quote?: string
 }
 
+/**
+ * Hard cap for base64-inlining any attachment into the renderer.
+ * 100MB Word docs (~133MB as data URLs) have crashed Electron 42 renderers
+ * (EXC_BREAKPOINT / dyld_pager) on Intel Macs — see cc-haha#1087.
+ */
+export const MAX_INLINE_ATTACHMENT_BYTES = 12 * 1024 * 1024
+
 function nextAttachmentId() {
   return `att-${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
@@ -74,24 +81,101 @@ export async function filesToComposerAttachments(files: FileList | File[]): Prom
   return attachments.filter((attachment): attachment is ComposerAttachment => !!attachment)
 }
 
+/**
+ * Drop heavy base64 payloads when a filesystem path is already known.
+ * Keeps small image previews that have no path.
+ */
+export function toTransportAttachment(attachment: ComposerAttachment): {
+  type: 'image' | 'file'
+  name: string
+  path?: string
+  data?: string
+  mimeType?: string
+  isDirectory?: boolean
+  lineStart?: number
+  lineEnd?: number
+  diffSide?: 'old' | 'new'
+  hunkId?: string
+  note?: string
+  quote?: string
+} {
+  const hasPath = typeof attachment.path === 'string' && attachment.path.length > 0
+  const keepData =
+    !hasPath &&
+    typeof attachment.data === 'string' &&
+    attachment.data.length > 0 &&
+    // Never ship multi‑MB base64 over WS/UI once a path exists; without a path
+    // only allow modest payloads that already passed MAX_INLINE_ATTACHMENT_BYTES.
+    (attachment.type === 'image' || attachment.data.length < MAX_INLINE_ATTACHMENT_BYTES * 1.4)
+
+  return {
+    type: attachment.type,
+    name: attachment.name,
+    path: attachment.path,
+    data: keepData ? attachment.data : undefined,
+    mimeType: attachment.mimeType,
+    isDirectory: attachment.isDirectory,
+    lineStart: attachment.lineStart,
+    lineEnd: attachment.lineEnd,
+    diffSide: attachment.diffSide,
+    hunkId: attachment.hunkId,
+    note: attachment.note,
+    quote: attachment.quote,
+  }
+}
+
 function normalizeDialogSelection(selected: string | string[] | null): string[] {
   if (!selected) return []
   const paths = Array.isArray(selected) ? selected : [selected]
   return paths.filter((filePath) => typeof filePath === 'string' && filePath.length > 0)
 }
 
-function getNativeFilePath(file: File): string | undefined {
+function getLegacyNativeFilePath(file: File): string | undefined {
   const path = (file as File & { path?: unknown }).path
   return typeof path === 'string' && path.length > 0 ? path : undefined
 }
 
+function resolveNativeFilePath(file: File): string | undefined {
+  const legacy = getLegacyNativeFilePath(file)
+  if (legacy) return legacy
+
+  if (!isDesktopRuntime()) return undefined
+
+  try {
+    const host = getDesktopHost()
+    const path = host.files?.getPathForFile?.(file)
+    return typeof path === 'string' && path.length > 0 ? path : undefined
+  } catch {
+    return undefined
+  }
+}
+
 async function fileToComposerAttachment(file: File): Promise<ComposerAttachment | null> {
-  const nativePath = isDesktopRuntime() ? getNativeFilePath(file) : undefined
+  const nativePath = resolveNativeFilePath(file)
   if (nativePath) {
     return pathToComposerAttachment(nativePath)
   }
 
   const isImage = file.type.startsWith('image/')
+
+  // Desktop must attach non-image files by path only. Without a resolvable path,
+  // refuse rather than base64-inlining (100MB Word docs crash the renderer).
+  if (isDesktopRuntime() && !isImage) {
+    console.warn(
+      `[attachments] Refusing to inline "${file.name}" (${file.size} bytes) without a filesystem path. ` +
+        'Use the native file picker or drag-and-drop so the desktop shell can pass a path.',
+    )
+    return null
+  }
+
+  if (file.size > MAX_INLINE_ATTACHMENT_BYTES) {
+    console.warn(
+      `[attachments] Refusing to inline "${file.name}" (${file.size} bytes > ${MAX_INLINE_ATTACHMENT_BYTES}). ` +
+        'Large files must be attached as filesystem paths.',
+    )
+    return null
+  }
+
   const data = await readFileAsDataUrl(file)
   return {
     id: nextAttachmentId(),

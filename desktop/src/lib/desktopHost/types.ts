@@ -16,6 +16,7 @@ export type DesktopHostCapability =
   | 'updates'
   | 'windowControls'
   | 'zoom'
+  | 'filePaths'
 
 export type DesktopHostCapabilities = Record<DesktopHostCapability, boolean>
 
@@ -226,6 +227,10 @@ export type DesktopHost = {
   }
   zoom: {
     set(level: number): Promise<void>
+  }
+  files: {
+    /** Electron webUtils.getPathForFile; returns null outside desktop. */
+    getPathForFile(file: File): string | null
   }
 }
 

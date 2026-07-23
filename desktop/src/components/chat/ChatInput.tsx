@@ -40,6 +40,7 @@ import { isDesktopRuntime } from '../../lib/desktopRuntime'
 import {
   filesToComposerAttachments,
   selectNativeFileAttachments,
+  toTransportAttachment,
   type ComposerAttachment,
 } from '../../lib/composerAttachments'
 import { useComposerFileDrop } from './useComposerFileDrop'
@@ -671,17 +672,9 @@ export function ChatInput({ variant = 'default', compact = false }: ChatInputPro
         ? t('chat.contextReferencesOnly', { count: workspaceReferences.length })
         : ''
     )
-    const uploadAttachmentPayload: AttachmentRef[] = attachments.map((attachment) => ({
-      type: attachment.type,
-      name: attachment.name,
-      path: attachment.path,
-      data: attachment.data,
-      mimeType: attachment.mimeType,
-      lineStart: attachment.lineStart,
-      lineEnd: attachment.lineEnd,
-      note: attachment.note,
-      quote: attachment.quote,
-    }))
+    const uploadAttachmentPayload: AttachmentRef[] = attachments.map((attachment) =>
+      toTransportAttachment(attachment),
+    )
     const workspaceAttachmentPayload: AttachmentRef[] = workspaceReferences
       .filter((reference) => reference.kind !== 'chat-selection')
       .map((reference) => ({

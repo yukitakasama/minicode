@@ -18,6 +18,7 @@ describe('desktop host contract', () => {
       updates: false,
       windowControls: false,
       zoom: false,
+      filePaths: false,
     })
   })
 

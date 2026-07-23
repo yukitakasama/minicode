@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import { createElectronHost } from '../src/lib/desktopHost/electronHost'
 import type { DesktopHostUnlisten } from '../src/lib/desktopHost/types'
 import type { ElectronEventChannel, ElectronIpcChannel } from './ipc/channels'
@@ -16,6 +16,14 @@ const electronHost = createElectronHost({
     return Promise.resolve(() => {
       ipcRenderer.removeListener(channel, listener)
     })
+  },
+  getPathForFile(file: File): string | null {
+    try {
+      const filePath = webUtils.getPathForFile(file)
+      return typeof filePath === 'string' && filePath.length > 0 ? filePath : null
+    } catch {
+      return null
+    }
   },
 })
 
